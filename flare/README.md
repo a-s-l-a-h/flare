@@ -1,6 +1,11 @@
 # Flare
 
-Server-Driven UI library for Phoenix + DivKit. Build native iOS, Android, and Web apps from one Elixir codebase.
+Server-Driven UI library for Phoenix + DivKit. Build native Android, and Web apps from one Elixir codebase.
+
+> ⚠️ **This is a proof of concept — version 0.5, not production ready.**
+> It demonstrates the SDUI architecture and core ideas. APIs will change. Use it to understand the pattern, run the demo, and build on these concepts.
+
+---
 
 ---
 
