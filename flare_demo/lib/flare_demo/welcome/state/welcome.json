@@ -1,0 +1,10 @@
+{
+  "variables": [
+    { "name": "flare_count",                       "type": "integer", "value": 0  },
+    { "name": "flare_first_name",                  "type": "string",  "value": "" },
+    { "name": "flare_last_name",                   "type": "string",  "value": "" },
+    { "name": "local_flare_pending_increment",     "type": "boolean", "value": false },
+    { "name": "local_flare_pending_decrement",     "type": "boolean", "value": false },
+    { "name": "local_flare_pending_go_to_profile", "type": "boolean", "value": false }
+  ]
+}

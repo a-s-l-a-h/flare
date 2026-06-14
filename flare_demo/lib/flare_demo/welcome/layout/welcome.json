@@ -1,0 +1,150 @@
+{
+  "card": {
+    "log_id": "welcome_screen",
+    "states": [
+      {
+        "state_id": 0,
+        "div": {
+          "type": "container",
+          "orientation": "vertical",
+          "background": [{ "type": "solid", "color": "#f0f2f8" }],
+          "paddings": { "top": 72, "bottom": 48, "left": 20, "right": 20 },
+          "items": [
+
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "background": [{ "type": "solid", "color": "#1a1a2e" }],
+              "border": { "corner_radius": 32 },
+              "paddings": { "top": 40, "bottom": 40, "left": 24, "right": 24 },
+              "margins": { "bottom": 16 },
+              "items": [
+                {
+                  "type": "text",
+                  "text": "COUNTER",
+                  "font_size": 11,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "#aaaaaa",
+                  "letter_spacing": 3,
+                  "margins": { "bottom": 8 }
+                },
+                {
+                  "type": "text",
+                  "text": "@{flare_count}",
+                  "font_size": 96,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "#ffffff",
+                  "margins": { "bottom": 32 }
+                },
+                {
+                  "type": "container",
+                  "orientation": "horizontal",
+                  "content_alignment_horizontal": "center",
+                  "content_alignment_vertical": "center",
+                  "items": [
+
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "width":  { "type": "fixed", "value": 72 },
+                      "height": { "type": "fixed", "value": 72 },
+                      "background": [{ "type": "solid", "color": "#e74c3c" }],
+                      "border": { "corner_radius": 36 },
+                      "content_alignment_horizontal": "center",
+                      "content_alignment_vertical": "center",
+                      "margins": { "right": 32 },
+                      "alpha": "@{local_flare_pending_decrement ? 0.35 : 1.0}",
+                      "action": {
+                        "log_id": "btn_decrement",
+                        "url": "flare://action",
+                        "payload": { "flare_action": "decrement" }
+                      },
+                      "items": [
+                        {
+                          "type": "text",
+                          "text": "−",
+                          "font_size": 36,
+                          "font_weight": "bold",
+                          "text_color": "#ffffff",
+                          "text_alignment_horizontal": "center"
+                        }
+                      ]
+                    },
+
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "width":  { "type": "fixed", "value": 72 },
+                      "height": { "type": "fixed", "value": 72 },
+                      "background": [{ "type": "solid", "color": "#3498db" }],
+                      "border": { "corner_radius": 36 },
+                      "content_alignment_horizontal": "center",
+                      "content_alignment_vertical": "center",
+                      "alpha": "@{local_flare_pending_increment ? 0.35 : 1.0}",
+                      "action": {
+                        "log_id": "btn_increment",
+                        "url": "flare://action",
+                        "payload": { "flare_action": "increment" }
+                      },
+                      "items": [
+                        {
+                          "type": "text",
+                          "text": "+",
+                          "font_size": 36,
+                          "font_weight": "bold",
+                          "text_color": "#ffffff",
+                          "text_alignment_horizontal": "center"
+                        }
+                      ]
+                    }
+
+                  ]
+                }
+              ]
+            },
+
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "background": [{ "type": "solid", "color": "#ffffff" }],
+              "border": { "corner_radius": 20 },
+              "paddings": { "top": 20, "bottom": 20, "left": 20, "right": 20 },
+              "margins": { "bottom": 16 },
+              "items": [
+                {
+                  "type": "text",
+                  "text": "@{flare_first_name == '' ? 'Hello, Stranger 👋' : 'Hello, ' + flare_first_name + ' ' + flare_last_name + ' 👋'}",
+                  "font_size": 18,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "#1a1a2e"
+                }
+              ]
+            },
+
+            {
+              "type": "text",
+              "text": "My Profile →",
+              "font_size": 16,
+              "font_weight": "bold",
+              "text_alignment_horizontal": "center",
+              "text_color": "#ffffff",
+              "background": [{ "type": "solid", "color": "#8e44ad" }],
+              "border": { "corner_radius": 16 },
+              "paddings": { "top": 18, "bottom": 18 },
+              "alpha": "@{local_flare_pending_go_to_profile ? 0.35 : 1.0}",
+              "action": {
+                "log_id": "btn_profile",
+                "url": "flare://action",
+                "payload": { "flare_action": "go_to_profile" }
+              }
+            }
+
+          ]
+        }
+      }
+    ]
+  }
+}

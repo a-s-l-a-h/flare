@@ -1,0 +1,90 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+note.txt
+/fullcode
+**/fullcode/
+/fullcode/
+fullcode/
+/todolist
+
+
+# ==========================================
+# Personal / Custom Rules
+# ==========================================
+# Ignore the 'fullcode' folder in any location
+fullcode/
+
+# Ignore 'note.txt' in any location
+note.txt
+hello.txt
+
+# (Optional) Other personal note files found in your tree
+editphonixchannelclientlog.txt
+nextupdate needed .txt
+todolist/
+
+# If you want to ignore ALL .txt files globally, uncomment the line below:
+# *.txt
+
+
+# ==========================================
+# Elixir / Mix (flare & flare_demo)
+# ==========================================
+_build/
+deps/
+.elixir_ls/
+erl_crash.dump
+*.ez
+cover/
+
+
+# ==========================================
+# Node.js / Phoenix Assets (flare_demo/assets)
+# ==========================================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+
+# ==========================================
+# Android / Gradle (flare-android-client)
+# ==========================================
+# Gradle cache and build folders
+.gradle/
+build/
+
+# Local properties file (contains absolute paths to your local Android SDK)
+local.properties
+
+# Android Studio / IntelliJ IDE files
+.idea/
+*.iml
+*.iws
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+
+
+package-lock.json
+mix.lock
+yarn.lock

@@ -1,0 +1,165 @@
+{
+  "card": {
+    "log_id": "profile_screen",
+    "states": [
+      {
+        "state_id": 0,
+        "div": {
+          "type": "container",
+          "orientation": "vertical",
+          "background": [{ "type": "solid", "color": "#f0f2f8" }],
+          "paddings": { "top": 72, "bottom": 48, "left": 20, "right": 20 },
+          "items": [
+
+            {
+              "type": "text",
+              "text": "Profile",
+              "font_size": 28,
+              "font_weight": "bold",
+              "text_color": "#1a1a2e",
+              "text_alignment_horizontal": "center",
+              "margins": { "bottom": 32 }
+            },
+
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "background": [{ "type": "solid", "color": "#1a1a2e" }],
+              "border": { "corner_radius": 24 },
+              "paddings": { "top": 32, "bottom": 32, "left": 24, "right": 24 },
+              "margins": { "bottom": 16 },
+              "content_alignment_horizontal": "center",
+              "items": [
+                {
+                  "type": "container",
+                  "orientation": "vertical",
+                  "width":  { "type": "fixed", "value": 80 },
+                  "height": { "type": "fixed", "value": 80 },
+                  "background": [{ "type": "solid", "color": "#8e44ad" }],
+                  "border": { "corner_radius": 40 },
+                  "content_alignment_horizontal": "center",
+                  "content_alignment_vertical": "center",
+                  "margins": { "bottom": 16 },
+                  "items": [
+                    {
+                      "type": "text",
+                      "text": "👤",
+                      "font_size": 36,
+                      "text_alignment_horizontal": "center"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "@{flare_first_name == '' ? 'No name set yet' : flare_first_name + ' ' + flare_last_name}",
+                  "font_size": 20,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "#ffffff"
+                }
+              ]
+            },
+
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "background": [{ "type": "solid", "color": "#ffffff" }],
+              "border": { "corner_radius": 24 },
+              "paddings": { "top": 28, "bottom": 28, "left": 20, "right": 20 },
+              "margins": { "bottom": 16 },
+              "items": [
+
+                {
+                  "type": "text",
+                  "text": "FIRST NAME",
+                  "font_size": 11,
+                  "font_weight": "bold",
+                  "text_color": "#aaaaaa",
+                  "letter_spacing": 2,
+                  "margins": { "bottom": 8 }
+                },
+                {
+                  "type": "input",
+                  "text_variable": "local_first_name",
+                  "hint_text": "Enter first name (optional)",
+                  "font_size": 16,
+                  "text_color": "#1a1a2e",
+                  "hint_color": "#cccccc",
+                  "highlight_color": "#8e44ad",
+                  "accessibility": { "description": "First name input" },
+                  "background": [{ "type": "solid", "color": "#f7f7f7" }],
+                  "border": { "corner_radius": 12 },
+                  "paddings": { "top": 14, "bottom": 14, "left": 16, "right": 16 },
+                  "margins": { "bottom": 20 }
+                },
+
+                {
+                  "type": "text",
+                  "text": "LAST NAME",
+                  "font_size": 11,
+                  "font_weight": "bold",
+                  "text_color": "#aaaaaa",
+                  "letter_spacing": 2,
+                  "margins": { "bottom": 8 }
+                },
+                {
+                  "type": "input",
+                  "text_variable": "local_last_name",
+                  "hint_text": "Enter last name (optional)",
+                  "font_size": 16,
+                  "text_color": "#1a1a2e",
+                  "hint_color": "#cccccc",
+                  "highlight_color": "#8e44ad",
+                  "accessibility": { "description": "Last name input" },
+                  "background": [{ "type": "solid", "color": "#f7f7f7" }],
+                  "border": { "corner_radius": 12 },
+                  "paddings": { "top": 14, "bottom": 14, "left": 16, "right": 16 },
+                  "margins": { "bottom": 28 }
+                },
+
+                {
+                  "type": "text",
+                  "text": "@{local_flare_pending_save_profile ? 'Saving...' : 'Save Profile'}",
+                  "font_size": 16,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "#ffffff",
+                  "background": [{ "type": "solid", "color": "#8e44ad" }],
+                  "border": { "corner_radius": 14 },
+                  "paddings": { "top": 16, "bottom": 16 },
+                  "alpha": "@{local_flare_pending_save_profile ? 0.35 : 1.0}",
+                  "action": {
+                    "log_id": "btn_save",
+                    "url": "flare://action",
+                    "payload": {
+                      "flare_action": "save_profile",
+                      "first_name": "@{local_first_name}",
+                      "last_name":  "@{local_last_name}"
+                    }
+                  }
+                }
+
+              ]
+            },
+
+            {
+              "type": "text",
+              "text": "← Back to Welcome",
+              "font_size": 15,
+              "text_alignment_horizontal": "center",
+              "text_color": "#888888",
+              "paddings": { "top": 8, "bottom": 8 },
+              "alpha": "@{local_flare_pending_go_back ? 0.35 : 1.0}",
+              "action": {
+                "log_id": "btn_back",
+                "url": "flare://action",
+                "payload": { "flare_action": "go_back" }
+              }
+            }
+
+          ]
+        }
+      }
+    ]
+  }
+}
