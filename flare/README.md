@@ -15,8 +15,19 @@ Flare is an Elixir library that connects Phoenix Framework on the server to DivK
 
 ```
 
-You write Elixir ↓ Flare manages state, diffs, routing, commands ↓ Phoenix sends JSON over WebSocket ↓ DivKit renders native UI on Android / Web ↓ User taps a button ↓ Flare routes the event to your handle_event function ↓ Cycle repeats
-
+				You write Elixir
+                         ↓
+   Flare manages state, diffs, routing, commands
+                         ↓
+         Phoenix sends JSON over WebSocket
+                         ↓
+     DivKit renders native UI on Android / Web
+                         ↓
+                 User taps a button
+                         ↓
+Flare routes the event to your handle_event function
+                         ↓
+                   Cycle repeats
 ```
 
 No JavaScript framework. No Kotlin knowledge required. One developer can ship a production-grade native app on multiple platforms.
