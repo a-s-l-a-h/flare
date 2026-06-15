@@ -1,8 +1,8 @@
-# Location: flare/lib/flare/view.ex
+# Location: flare/lib/flare/screen.ex
 
-defmodule Flare.View do
+defmodule Flare.Screen do
   @moduledoc """
-  The behaviour and macro injected into every developer's view module.
+  The behaviour and macro injected into every developer's screen module.
 
   Think of it like a Django class-based view — one module per screen,
   with lifecycle callbacks you only implement when needed.
@@ -10,9 +10,9 @@ defmodule Flare.View do
   ## Usage
 
       defmodule MyApp.Welcome do
-        use Flare.View
+        use Flare.Screen
 
-        view_files __DIR__
+        screen_dir __DIR__
 
         @impl true
         def mount(_params, socket) do
@@ -29,15 +29,16 @@ defmodule Flare.View do
   ## Callbacks
 
   - `mount/2` — **required**. Called once when a client joins the screen.
+    Query your database here and assign values to the socket.
   - `handle_event/3` — optional. Called when the client fires a `flare_action`.
   - `handle_info/2` — optional. Called for process messages and timers.
 
   ## File convention
 
-  Call `view_files __DIR__` directly below `use Flare.View`. Expected structure:
+  Call `screen_dir __DIR__` directly below `use Flare.Screen`. Expected structure:
 
       welcome/
-      ├── welcome.ex          ← your view module
+      ├── welcome.ex          ← your screen module
       ├── layout/
       │   └── welcome.json    ← DivKit card JSON
       └── state/
@@ -55,10 +56,10 @@ defmodule Flare.View do
 
   defmacro __using__(_opts) do
     quote do
-      @behaviour Flare.View
+      @behaviour Flare.Screen
       import Flare.Socket, only: [assign: 2, assign: 3]
       import Flare.Commands
-      import Flare.View, only: [view_files: 1]
+      import Flare.Screen, only: [screen_dir: 1]
 
       def handle_event(_event, _payload, socket), do: {:noreply, socket}
       def handle_info(_msg, socket), do: {:noreply, socket}
@@ -68,17 +69,17 @@ defmodule Flare.View do
   end
 
   @doc """
-  Registers the directory where this view's `layout/` and `state/` folders live.
+  Registers the directory where this screen's `layout/` and `state/` folders live.
 
-      view_files __DIR__
+      screen_dir __DIR__
 
-  Call this once, directly below `use Flare.View`.
+  Call this once, directly below `use Flare.Screen`.
   """
-  defmacro view_files(dir) do
+  defmacro screen_dir(dir) do
     quote do
-      @__view_dir__ unquote(dir)
+      @__screen_dir__ unquote(dir)
       @doc false
-      def __view_dir__, do: @__view_dir__
+      def __screen_dir__, do: @__screen_dir__
     end
   end
 end

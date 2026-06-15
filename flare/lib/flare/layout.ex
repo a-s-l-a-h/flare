@@ -17,37 +17,37 @@ defmodule Flare.Layout do
   with an empty variables list — valid for screens with no server variables.
   """
 
-  def build_init_envelope(view_module, page_name, assigns) do
-    Flare.Logger.info(__MODULE__, "Building INIT for: #{page_name}")
-    {layout_json, state_json} = load_view_files(view_module, page_name)
+  def build_init_envelope(screen_module, screen_name, assigns) do
+    Flare.Logger.info(__MODULE__, "Building INIT for: #{screen_name}")
+    {layout_json, state_json} = load_screen_files(screen_module, screen_name)
 
     %{
-      "screen"    => page_name,
+      "screen"    => screen_name,
       "layout"    => layout_json,
       "variables" => state_json["variables"] || [],
       "state"     => stringify_keys(assigns)
     }
   end
 
-  def build_patch_envelope(page_name, diff) do
-    Flare.Logger.debug(__MODULE__, "Building PATCH for: #{page_name}")
+  def build_patch_envelope(screen_name, diff) do
+    Flare.Logger.debug(__MODULE__, "Building PATCH for: #{screen_name}")
     %{
-      "screen" => page_name,
+      "screen" => screen_name,
       "state"  => stringify_keys(diff)
     }
   end
 
-  def build_patch_with_commands_envelope(page_name, diff, commands) do
-    base = build_patch_envelope(page_name, diff)
+  def build_patch_with_commands_envelope(screen_name, diff, commands) do
+    base = build_patch_envelope(screen_name, diff)
     Map.put(base, "commands", commands)
   end
 
-  def build_layout_update_envelope(view_module, page_name) do
-    Flare.Logger.info(__MODULE__, "Building LAYOUT_UPDATE for: #{page_name}")
-    {layout_json, state_json} = load_view_files(view_module, page_name)
+  def build_layout_update_envelope(screen_module, screen_name) do
+    Flare.Logger.info(__MODULE__, "Building LAYOUT_UPDATE for: #{screen_name}")
+    {layout_json, state_json} = load_screen_files(screen_module, screen_name)
 
     %{
-      "screen"    => page_name,
+      "screen"    => screen_name,
       "layout"    => layout_json,
       "variables" => state_json["variables"] || []
     }
@@ -57,42 +57,42 @@ defmodule Flare.Layout do
   # Private
   # ---------------------------------------------------------------------------
 
-  defp load_view_files(view_module, page_name) do
-    view_dir = get_view_dir!(view_module)
+  defp load_screen_files(screen_module, screen_name) do
+    screen_dir = get_screen_dir!(screen_module)
 
-    layout_path = Path.join([view_dir, "layout", "#{page_name}.json"])
-    state_path  = Path.join([view_dir, "state",  "#{page_name}.json"])
+    layout_path = Path.join([screen_dir, "layout", "#{screen_name}.json"])
+    state_path  = Path.join([screen_dir, "state",  "#{screen_name}.json"])
 
-    layout_json = read_json_required!(layout_path, view_module)
+    layout_json = read_json_required!(layout_path, screen_module)
     state_json  = read_json_optional(state_path)
 
     {layout_json, state_json}
   end
 
-  defp get_view_dir!(view_module) do
-    if function_exported?(view_module, :__view_dir__, 0) do
-      view_module.__view_dir__()
+  defp get_screen_dir!(screen_module) do
+    if function_exported?(screen_module, :__screen_dir__, 0) do
+      screen_module.__screen_dir__()
     else
       raise """
-      Flare: #{inspect(view_module)} is missing `view_files __DIR__`.
+      Flare: #{inspect(screen_module)} is missing `screen_dir __DIR__`.
 
-      Add this directly below `use Flare.View`:
+      Add this directly below `use Flare.Screen`:
 
-          view_files __DIR__
+          screen_dir __DIR__
 
       This tells Flare where to find your layout/ and state/ JSON files.
       """
     end
   end
 
-  defp read_json_required!(path, view_module) do
+  defp read_json_required!(path, screen_module) do
     case File.read(path) do
       {:ok, contents} ->
         Jason.decode!(contents)
 
       {:error, reason} ->
         raise """
-        Flare: Could not read layout file for #{inspect(view_module)}.
+            Flare: Could not read layout file for #{inspect(screen_module)}.
 
         Expected path: #{path}
         Error: #{inspect(reason)}

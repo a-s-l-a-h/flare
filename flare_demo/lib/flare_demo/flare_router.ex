@@ -3,6 +3,6 @@
 defmodule FlareDemo.FlareRouter do
   use Flare.Router
 
-  view "welcome",   FlareDemo.Welcome
-  view "profile",   FlareDemo.Profile
+  screen "welcome", FlareDemo.Welcome
+  screen "profile", FlareDemo.Profile
 end

@@ -43,14 +43,7 @@ defmodule Flare.UserState do
     end
   end
 
-  @doc """
-  Returns cached values for the requested keys.
-  Missing keys are loaded from the configured `Flare.StateLoader` and cached.
-  """
-  def get(nil, _keys), do: %{}
-  def get(user_id, keys) do
-    GenServer.call(via(user_id), {:get, keys})
-  end
+
 
   @doc """
   Merges new values into the cache and broadcasts any changes via PubSub.
@@ -140,31 +133,7 @@ end
     # That is correct — we want it gone until the user reconnects.
   end
 
-  # ---------------------------------------------------------------------------
-  # handle_call — {:get, keys}
-  # Returns cached values. Loads missing keys from state_loader if needed.
-  # Fourth element resets the idle timeout after every call.
-  # ---------------------------------------------------------------------------
-  @impl true
-  def handle_call({:get, keys}, _from, state) do
-    keys_list    = List.wrap(keys)
-    missing_keys = Enum.reject(keys_list, &Map.has_key?(state.data, &1))
 
-    loaded_data =
-      if missing_keys != [] do
-        load_missing(state.user_id, missing_keys)
-      else
-        %{}
-      end
-
-    new_data = Map.merge(state.data, loaded_data)
-    result   = Map.take(new_data, keys_list)
-
-    {:reply, result, %{state | data: new_data}, timeout()}
-    # timeout() as fourth element: countdown resets after this message.
-    # Without this, a user who gets data but never updates would time out
-    # even while actively using the app.
-  end
 
   # ---------------------------------------------------------------------------
   # handle_call — {:update, new_values}
@@ -254,20 +223,5 @@ end
     Application.get_env(:flare, :user_state_timeout, @default_timeout)
   end
 
-  defp load_missing(user_id, missing_keys) do
-    case Application.get_env(:flare, :state_loader) do
-      nil ->
-        Flare.Logger.debug(__MODULE__, "No state_loader configured, keys stay empty: #{inspect(missing_keys)}")
-        %{}
-
-      loader_module ->
-        try do
-          loader_module.load(user_id, missing_keys)
-        rescue
-          e ->
-            Flare.Logger.error(__MODULE__, "state_loader.load/2 raised", e)
-            %{}
-        end
-    end
-  end
+  
 end

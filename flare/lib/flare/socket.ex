@@ -18,16 +18,16 @@ defmodule Flare.Socket do
 
   defstruct [
     :user_id,      # String user ID, or nil for anonymous sessions
-    :view,         # The Elixir view module handling this screen
-    :page,         # String page name, e.g. "welcome", "product"
+    :screen_module,  # The Elixir module handling this screen e.g. MyApp.Welcome
+    :screen_name,    # String screen name, e.g. "welcome", "product"
     assigns: %{},  # flare_ prefixed state values
     commands: []   # Commands to send to the client this cycle
   ]
 
   @type t :: %__MODULE__{
     user_id:  String.t() | nil,
-    view:     module(),
-    page:     String.t(),
+    screen_module: module(),
+    screen_name:   String.t(),
     assigns:  map(),
     commands: list()
   }

@@ -2,7 +2,7 @@
 
 defmodule Flare.Lifecycle do
   @moduledoc """
-  Safely executes developer view callbacks and formats error messages.
+  Safely executes developer screen callbacks and formats error messages.
 
   Wraps mount/handle_event/handle_info in try/rescue so a bug in one
   user's screen never crashes the entire node — and the error message

@@ -1,7 +1,7 @@
 defmodule FlareDemo.Welcome do
-  use Flare.View
+  use Flare.Screen
 
-  view_files __DIR__
+  screen_dir __DIR__
 
   @impl true
   def mount(_params, socket) do

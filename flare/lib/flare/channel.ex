@@ -4,7 +4,7 @@ defmodule Flare.Channel do
   @moduledoc """
   The Phoenix Channel that handles every Flare WebSocket connection.
 
-  Every screen maps to one channel topic: `"flare:<page_name>"`.
+  Every screen maps to one channel topic: `"flare:<screen_name>"`.
 
   Wire it in your UserSocket:
 
@@ -13,12 +13,12 @@ defmodule Flare.Channel do
 
   use Phoenix.Channel
 
-  def join("flare:" <> page_name, params, channel_socket) do
+  def join("flare:" <> screen_name, params, channel_socket) do
     # user_id from UserSocket — nil means first ever connection, no token sent.
     # For returning guests: already a "guest_XXX" string (verified by signature).
     # For real users: whatever ID was signed into their auth token.
     user_id = channel_socket.assigns[:user_id]
-    Flare.Logger.info(__MODULE__, "Joining screen: #{page_name} | user: #{inspect(user_id)}")
+    Flare.Logger.info(__MODULE__, "Joining screen: #{screen_name} | user: #{inspect(user_id)}")
 
     # ── Determine the final user identity ──────────────────────────────────
     # If user_id is nil (first ever connection), we generate and sign a guest
@@ -73,14 +73,14 @@ defmodule Flare.Channel do
 
     # Subscribe to PubSub topics for this user and screen
     Phoenix.PubSub.subscribe(Flare.PubSub, "user:#{final_user_id}")
-    Phoenix.PubSub.subscribe(Flare.PubSub, "screen:#{final_user_id}:#{page_name}")
+    Phoenix.PubSub.subscribe(Flare.PubSub, "screen:#{final_user_id}:#{screen_name}")
 
     # Broadcasts to all users on this screen (no user_id needed for these)
-    Phoenix.PubSub.subscribe(Flare.PubSub, "broadcast:#{page_name}")
+    Phoenix.PubSub.subscribe(Flare.PubSub, "broadcast:#{screen_name}")
 
     router      = Application.get_env(:flare, :router) ||
       raise "Missing config: config :flare, router: MyApp.FlareRouter"
-    view_module = router.view_for!(page_name)
+    screen_module = router.screen_for!(screen_name)
 
     # Restore saved state for this user.
     # Now uses final_user_id — so returning guests get their saved count back.
@@ -89,16 +89,16 @@ defmodule Flare.Channel do
     Flare.Logger.info(__MODULE__, "Restored assigns for #{final_user_id}: #{inspect(Map.keys(saved_assigns))}")
 
     flare_socket = %Flare.Socket{
-      user_id:  final_user_id,
-      view:     view_module,
-      page:     page_name,
-      assigns:  saved_assigns,
-      commands: []
+          user_id:       final_user_id,
+          screen_module: screen_module,
+          screen_name:   screen_name,
+          assigns:       saved_assigns,
+          commands:      []
     }
 
-    case Flare.Lifecycle.mount(view_module, params, flare_socket) do
+    case Flare.Lifecycle.mount(screen_module, params, flare_socket) do
       {:ok, mounted_socket} ->
-        envelope = Flare.Layout.build_init_envelope(view_module, page_name, mounted_socket.assigns)
+        envelope = Flare.Layout.build_init_envelope(screen_module, screen_name, mounted_socket.assigns)
 
         # guest_command is either [] (returning user) or [store_token command] (new guest).
         # The store_token command is merged into the init envelope by handle_info below.
@@ -108,7 +108,7 @@ defmodule Flare.Channel do
         {:ok, new_channel_socket}
 
       {:error, reason} ->
-        Flare.Logger.error(__MODULE__, "mount/2 rejected join for page #{page_name}", reason)
+        Flare.Logger.error(__MODULE__, "mount/2 rejected join for page #{screen_name}", reason)
         {:error, %{"reason" => "mount_rejected", "detail" => inspect(reason)}}
     end
   end
@@ -119,7 +119,7 @@ defmodule Flare.Channel do
 
   flare_socket = %{flare_socket | commands: []}
 
-  case Flare.Lifecycle.handle_event(flare_socket.view, type, payload, flare_socket) do
+  case Flare.Lifecycle.handle_event(flare_socket.screen_module, type, payload, flare_socket) do
     {:noreply, new_flare_socket} ->
       diff     = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
       commands = new_flare_socket.commands
@@ -172,7 +172,7 @@ end
     new_assigns      = Map.merge(flare_socket.assigns, global_diff)
     new_flare_socket = %{flare_socket | assigns: new_assigns}
 
-    envelope = Flare.Layout.build_patch_envelope(flare_socket.page, global_diff)
+    envelope = Flare.Layout.build_patch_envelope(flare_socket.screen_name, global_diff)
     push(channel_socket, "patch", envelope)
 
     {:noreply, assign(channel_socket, :flare_socket, new_flare_socket)}
@@ -189,7 +189,7 @@ end
     diff             = Flare.Diff.compute(old_assigns, new_assigns)
 
     unless Flare.Diff.empty?(diff) do
-      envelope = Flare.Layout.build_patch_envelope(flare_socket.page, diff)
+      envelope = Flare.Layout.build_patch_envelope(flare_socket.screen_name, diff)
       push(channel_socket, "patch", envelope)
     end
 
@@ -201,7 +201,7 @@ end
     Flare.Logger.info(__MODULE__, "Direct command received: #{command["type"]}")
     flare_socket = channel_socket.assigns.flare_socket
 
-    envelope = Flare.Layout.build_patch_with_commands_envelope(flare_socket.page, %{}, [command])
+    envelope = Flare.Layout.build_patch_with_commands_envelope(flare_socket.screen_name, %{}, [command])
     push(channel_socket, "patch", envelope)
 
     {:noreply, channel_socket}
@@ -212,7 +212,7 @@ end
     Flare.Logger.info(__MODULE__, "Layout update received")
     flare_socket = channel_socket.assigns.flare_socket
 
-    envelope = Flare.Layout.build_layout_update_envelope(flare_socket.view, flare_socket.page)
+    envelope = Flare.Layout.build_layout_update_envelope(flare_socket.screen_module, flare_socket.screen_name)
     push(channel_socket, "layout_update", envelope)
 
     {:noreply, channel_socket}
@@ -229,7 +229,7 @@ end
     diff             = Flare.Diff.compute(old_assigns, new_assigns)
 
     unless Flare.Diff.empty?(diff) do
-      envelope = Flare.Layout.build_patch_envelope(flare_socket.page, diff)
+      envelope = Flare.Layout.build_patch_envelope(flare_socket.screen_name, diff)
       push(channel_socket, "patch", envelope)
     end
 
@@ -244,7 +244,7 @@ end
     flare_socket = %{flare_socket | commands: []}
 
     {:noreply, new_flare_socket} =
-      Flare.Lifecycle.handle_info(flare_socket.view, message, flare_socket)
+        Flare.Lifecycle.handle_info(flare_socket.screen_module, message, flare_socket)
 
     diff     = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
     commands = new_flare_socket.commands
@@ -279,10 +279,10 @@ end
 
   defp push_diff_and_commands(channel_socket, diff, commands) do
     flare_socket = channel_socket.assigns.flare_socket
-    page_name    = flare_socket.page
+    screen_name  = flare_socket.screen_name
     global_keys  = Application.get_env(:flare, :global_keys, [])
 
-    {global_diff, page_diff} = Flare.Diff.split(diff, global_keys)
+    {global_diff, screen_diff} = Flare.Diff.split(diff, global_keys)
 
     # Global keys are broadcast via UserState → PubSub → all open screens.
     # But we must also update this channel's own flare_socket.assigns so the
@@ -298,15 +298,15 @@ end
         channel_socket
       end
 
-    unless Flare.Diff.empty?(page_diff) do
-      Flare.UserState.save(flare_socket.user_id, page_diff)
+    unless Flare.Diff.empty?(screen_diff) do
+      Flare.UserState.save(flare_socket.user_id, screen_diff)
     end
 
-    has_diff = not Flare.Diff.empty?(page_diff)
+    has_diff = not Flare.Diff.empty?(screen_diff)
     has_cmds = length(commands) > 0
 
     if has_diff or has_cmds do
-      envelope = Flare.Layout.build_patch_with_commands_envelope(page_name, page_diff, commands)
+      envelope = Flare.Layout.build_patch_with_commands_envelope(screen_name, screen_diff, commands)
       push(updated_channel_socket, "patch", envelope)
     end
 
