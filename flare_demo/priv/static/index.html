@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/assets/app.css">
   <script defer src="/assets/app.js"></script>
 </head>
-  <style>
+<style>
   * {
     touch-action: manipulation !important;
     user-select: none !important;
@@ -53,26 +53,7 @@
         <div style="flex:1;height:1px;background:#e0e0e0;"></div>
       </div>
 
-      <!-- Google -->
-      <button id="btn-google"
-              style="display:flex;align-items:center;justify-content:center;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:14px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px;background:#fff;color:#333;box-sizing:border-box;">
-        <img src="https://www.svgrepo.com/show/475656/google-color.svg"
-             style="height:18px;margin-right:8px;" alt="" />
-        Continue with Google
-      </button>
-
-      <!-- Keycloak -->
-      <button id="btn-keycloak"
-              style="display:block;width:100%;padding:16px;border:none;border-radius:14px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px;background:#2563eb;color:#fff;">
-        Continue with Keycloak
-      </button>
-
-      <!-- Divider -->
-      <div style="display:flex;align-items:center;margin:16px 0;color:#ccc;font-size:13px;gap:8px;">
-        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
-        <span>or</span>
-        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
-      </div>
+      <!-- DEVELOPER: If you need OAuth (Google, Keycloak, Apple), add your buttons here -->
 
       <!-- Guest -->
       <button id="btn-guest"
@@ -133,16 +114,12 @@
       }
 
       // ── Start Flare ──────────────────────────────────────────────────────
-      // Hides login, shows app root, then calls app.js entry point.
-      // app.js sets window.__flare_start__ — if it hasn't loaded yet the
-      // flag window.__flare__autoStart tells it to fire when it does.
       function startFlare(token) {
         if (token) saveToken(token);
         showApp();
         if (typeof window.__flare_start__ === "function") {
           window.__flare_start__();
         } else {
-          // app.js not loaded yet — set flag, app.js picks it up on load
           window.__flare__.autoStart = true;
         }
       }
@@ -160,9 +137,6 @@
       }
 
       // ── Boot decision ────────────────────────────────────────────────────
-      // Priority 1: OAuth callback token in URL  (?token=XXX)
-      // Priority 2: Token already in localStorage
-      // Priority 3: Show login screen
       const urlParams  = new URLSearchParams(window.location.search);
       const oauthToken = urlParams.get("token");
 
@@ -172,8 +146,6 @@
       } else {
         const stored = loadToken();
         if (stored) {
-          // Pass token to Flare — UserSocket verifies it.
-          // Bad/expired token degrades gracefully to guest, never hard-errors.
           startFlare(stored);
         } else {
           showLogin();
@@ -198,17 +170,8 @@
         }
       });
 
-      // ── Button: Google ───────────────────────────────────────────────────
-      document.getElementById("btn-google").addEventListener("click", () => {
-        localStorage.setItem("flare_oauth_screen", window.location.pathname.replace("/","") || "welcome");
-        window.location.href = "/auth/google";
-      });
-
-      // ── Button: Keycloak ─────────────────────────────────────────────────
-      document.getElementById("btn-keycloak").addEventListener("click", () => {
-        localStorage.setItem("flare_oauth_screen", window.location.pathname.replace("/","") || "welcome");
-        window.location.href = "/auth/keycloak";
-      });
+      // ── DEVELOPER: Handle OAuth button clicks here if added ──────────────
+      // (e.g. Google, Keycloak redirect scripts)
 
       // ── Button: Guest ────────────────────────────────────────────────────
       document.getElementById("btn-guest").addEventListener("click", async () => {
@@ -219,8 +182,6 @@
           const { token } = await postJson("/auth/guest", {});
           startFlare(token);
         } catch (e) {
-          // Guest endpoint failed — open Flare with no token.
-          // UserSocket will assign nil and channel will generate a guest token.
           startFlare(null);
         } finally {
           setLoading(btn, false);
@@ -236,6 +197,5 @@
 
     })();
   </script>
-
 </body>
 </html>
