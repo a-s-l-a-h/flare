@@ -191,6 +191,52 @@ Flare.broadcast_to_screen("store", %{flare_sale_active: true})
 
 ---
 
+## Authentication Contract
+
+Flare expects the host application to handle identity **before** the WebSocket connects. Clients (both real users and guests) must obtain a signed `Phoenix.Token` from your HTTP API (e.g., `POST /auth/login` or `POST /auth/guest`), and pass it when connecting.
+
+Flare hard-rejects any connection where `socket.assigns.user_id` is nil. Because of this, you **never** need to check if a user is logged in inside your `mount/2` functions. If `mount/2` is called, the user is guaranteed to be authenticated.
+
+### 1. Host App HTTP Endpoint (Before WebSocket opens)
+```elixir
+def login(conn, %{"email" => email, "password" => password}) do
+  {:ok, user_id} = MyApp.Accounts.authenticate(email, password)
+  token = Phoenix.Token.sign(MyApp.Endpoint, "user_auth", user_id)
+  json(conn, %{token: token})
+end
+```
+
+### 2. Phoenix UserSocket (Validates the token)
+```elixir
+@impl true
+def connect(%{"token" => token}, socket, _connect_info) do
+  case Phoenix.Token.verify(MyApp.Endpoint, "user_auth", token, max_age: 86_400) do
+    {:ok, user_id}     -> {:ok, assign(socket, :user_id, user_id)}
+    {:error, :expired} -> {:error, %{reason: "session_expired"}}
+    {:error, _}        -> {:error, %{reason: "invalid_token"}}
+  end
+end
+
+# Hard-reject connections without a token
+@impl true
+def connect(_params, _socket, _connect_info) do
+  {:error, %{reason: "authentication_required"}}
+end
+```
+
+### 3. Logout (Clears storage, client disconnects and returns to login UI)
+```elixir
+def handle_event("logout", _payload, socket) do
+  Flare.UserState.stop(socket.user_id)
+  
+  socket
+  |> clear_storage()
+  |> then(&{:noreply, &1})
+end
+```
+
+---
+
 ## Running the demo
 
 The demo app shows a counter that persists across navigation and a profile form that saves a name. It runs on both web and Android against the same Elixir server.
@@ -207,13 +253,14 @@ mix setup          # installs deps and builds JS assets
 mix phx.server     # starts on http://localhost:4000
 ```
 
-Open `http://localhost:4000` in your browser. You should see the counter screen.
+Open `http://localhost:4000` in your browser. You should see the login screen.
 
 ### Android client
 1. Open `flare-android-client/` in Android Studio.
 2. Run on an emulator or physical device.
 3. Enter `http://10.0.2.2:4000/` in the URL field (emulator) or your machine's local IP (physical device).
 4. Tap **Connect**.
+5. You will be routed to the Login screen. Tap **Continue as Guest** (or enter the demo credentials `demo@example.com` / `demo`).
 
 *Pro Tip: Open the Web app and Android app side by side. Increment the counter on Web, navigate to Profile on Android. The state persists across both.*
 
@@ -253,6 +300,7 @@ flare_demo/                ← Example Phoenix App
     flare-client.js        Web SDK
 
 flare-android-client/      ← Example Android App
+  LoginActivity.java       Native HTTP Auth integration
   FlareClientActivity.java Runtime — socket, DivKit, commands, navigation
   PhoenixChannel.java      Zero-dependency Phoenix Channels v2 implementation
   NativeFeatureBridge.java

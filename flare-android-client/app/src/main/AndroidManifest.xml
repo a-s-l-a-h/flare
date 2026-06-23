@@ -27,6 +27,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- 2. ADDED FLARE ACTIVITY -->
         <activity
             android:name=".FlareClientActivity"

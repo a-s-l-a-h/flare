@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flare Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
+  <title>Flare Demo</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script defer src="/assets/app.js"></script>
+</head>
   <style>
   * {
     touch-action: manipulation !important;
@@ -14,20 +15,226 @@
     -webkit-tap-highlight-color: transparent !important;
   }
 </style>
+<body style="margin:0;padding:0;background:#f0f2f8;font-family:sans-serif;">
 
-  <link rel="stylesheet" href="/assets/app.css">
-  <script defer src="/assets/app.js"></script>
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;">
+  <!-- Login page — shown before WebSocket opens, hidden after auth -->
+  <div id="flare-login" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;">
 
+    <div style="background:#fff;border-radius:24px;padding:40px 32px;width:100%;max-width:380px;box-shadow:0 4px 32px rgba(0,0,0,0.08);">
+
+      <div style="font-size:26px;font-weight:bold;color:#1a1a2e;text-align:center;margin-bottom:8px;">🔥 Flare Demo</div>
+      <div style="font-size:14px;color:#888;text-align:center;margin-bottom:32px;">Sign in to continue</div>
+
+      <!-- Error box — hidden until needed -->
+      <div id="login-error" style="display:none;background:#fdecea;color:#c0392b;border-radius:10px;padding:12px 16px;font-size:14px;margin-bottom:16px;text-align:center;"></div>
+
+      <!-- Email / password -->
+      <input id="login-email"
+             type="email"
+             placeholder="Email"
+             autocomplete="email"
+             style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;color:#1a1a2e;background:#f7f7f7;margin-bottom:12px;outline:none;box-sizing:border-box;" />
+
+      <input id="login-password"
+             type="password"
+             placeholder="Password"
+             autocomplete="current-password"
+             style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;color:#1a1a2e;background:#f7f7f7;margin-bottom:12px;outline:none;box-sizing:border-box;" />
+
+      <button id="btn-login"
+              style="display:block;width:100%;padding:16px;border:none;border-radius:14px;font-size:16px;font-weight:bold;cursor:pointer;margin-bottom:10px;background:#8e44ad;color:#fff;">
+        Sign In
+      </button>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;margin:16px 0;color:#ccc;font-size:13px;gap:8px;">
+        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
+        <span>or</span>
+        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
+      </div>
+
+      <!-- Google -->
+      <button id="btn-google"
+              style="display:flex;align-items:center;justify-content:center;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:14px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px;background:#fff;color:#333;box-sizing:border-box;">
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg"
+             style="height:18px;margin-right:8px;" alt="" />
+        Continue with Google
+      </button>
+
+      <!-- Keycloak -->
+      <button id="btn-keycloak"
+              style="display:block;width:100%;padding:16px;border:none;border-radius:14px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px;background:#2563eb;color:#fff;">
+        Continue with Keycloak
+      </button>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;margin:16px 0;color:#ccc;font-size:13px;gap:8px;">
+        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
+        <span>or</span>
+        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
+      </div>
+
+      <!-- Guest -->
+      <button id="btn-guest"
+              style="display:block;width:100%;padding:10px;border:none;border-radius:14px;font-size:14px;cursor:pointer;background:transparent;color:#888;">
+        Continue as Guest →
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Flare app root — shown after auth, exactly as before -->
   <div id="flare-root" style="width:100%;min-height:100vh;"></div>
 
   <script>
     window.__flare__ = {
-      wsUrl: "/socket",
-      token: null,
-      entryScreen: "welcome"
+      wsUrl:        "/socket",
+      token:        null,
+      entryScreen:  "welcome"
     };
+  </script>
+
+  <script>
+    (function () {
+      const LOGIN_DIV = document.getElementById("flare-login");
+      const ROOT_DIV  = document.getElementById("flare-root");
+      const ERROR_DIV = document.getElementById("login-error");
+
+      // ── Show/hide helpers ────────────────────────────────────────────────
+      function showLogin() {
+        LOGIN_DIV.style.display = "flex";
+        ROOT_DIV.style.display  = "none";
+      }
+      function showApp() {
+        LOGIN_DIV.style.display = "none";
+        ROOT_DIV.style.display  = "block";
+      }
+      function showError(msg) {
+        ERROR_DIV.textContent   = msg;
+        ERROR_DIV.style.display = "block";
+      }
+      function clearError() {
+        ERROR_DIV.style.display = "none";
+        ERROR_DIV.textContent   = "";
+      }
+      function setLoading(btn, loading) {
+        btn.disabled = loading;
+        if (loading) btn.dataset.original = btn.textContent;
+        btn.textContent = loading ? "Please wait…" : btn.dataset.original;
+      }
+
+      // ── Token helpers ────────────────────────────────────────────────────
+      function saveToken(token) {
+        localStorage.setItem("flare_token", token);
+        window.__flare__.token = token;
+      }
+      function loadToken() {
+        return localStorage.getItem("flare_token");
+      }
+
+      // ── Start Flare ──────────────────────────────────────────────────────
+      // Hides login, shows app root, then calls app.js entry point.
+      // app.js sets window.__flare_start__ — if it hasn't loaded yet the
+      // flag window.__flare__autoStart tells it to fire when it does.
+      function startFlare(token) {
+        if (token) saveToken(token);
+        showApp();
+        if (typeof window.__flare_start__ === "function") {
+          window.__flare_start__();
+        } else {
+          // app.js not loaded yet — set flag, app.js picks it up on load
+          window.__flare__.autoStart = true;
+        }
+      }
+
+      // ── HTTP helper ──────────────────────────────────────────────────────
+      async function postJson(url, body) {
+        const res  = await fetch(url, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify(body)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Request failed");
+        return json;
+      }
+
+      // ── Boot decision ────────────────────────────────────────────────────
+      // Priority 1: OAuth callback token in URL  (?token=XXX)
+      // Priority 2: Token already in localStorage
+      // Priority 3: Show login screen
+      const urlParams  = new URLSearchParams(window.location.search);
+      const oauthToken = urlParams.get("token");
+
+      if (oauthToken) {
+        window.history.replaceState({}, "", window.location.pathname);
+        startFlare(oauthToken);
+      } else {
+        const stored = loadToken();
+        if (stored) {
+          // Pass token to Flare — UserSocket verifies it.
+          // Bad/expired token degrades gracefully to guest, never hard-errors.
+          startFlare(stored);
+        } else {
+          showLogin();
+        }
+      }
+
+      // ── Button: Sign In ──────────────────────────────────────────────────
+      document.getElementById("btn-login").addEventListener("click", async () => {
+        clearError();
+        const btn      = document.getElementById("btn-login");
+        const email    = document.getElementById("login-email").value.trim();
+        const password = document.getElementById("login-password").value;
+        if (!email || !password) { showError("Please enter email and password."); return; }
+        setLoading(btn, true);
+        try {
+          const { token } = await postJson("/auth/login", { email, password });
+          startFlare(token);
+        } catch (e) {
+          showError(e.message || "Login failed. Please try again.");
+        } finally {
+          setLoading(btn, false);
+        }
+      });
+
+      // ── Button: Google ───────────────────────────────────────────────────
+      document.getElementById("btn-google").addEventListener("click", () => {
+        localStorage.setItem("flare_oauth_screen", window.location.pathname.replace("/","") || "welcome");
+        window.location.href = "/auth/google";
+      });
+
+      // ── Button: Keycloak ─────────────────────────────────────────────────
+      document.getElementById("btn-keycloak").addEventListener("click", () => {
+        localStorage.setItem("flare_oauth_screen", window.location.pathname.replace("/","") || "welcome");
+        window.location.href = "/auth/keycloak";
+      });
+
+      // ── Button: Guest ────────────────────────────────────────────────────
+      document.getElementById("btn-guest").addEventListener("click", async () => {
+        clearError();
+        const btn = document.getElementById("btn-guest");
+        setLoading(btn, true);
+        try {
+          const { token } = await postJson("/auth/guest", {});
+          startFlare(token);
+        } catch (e) {
+          // Guest endpoint failed — open Flare with no token.
+          // UserSocket will assign nil and channel will generate a guest token.
+          startFlare(null);
+        } finally {
+          setLoading(btn, false);
+        }
+      });
+
+      // ── Enter key submits login ──────────────────────────────────────────
+      ["login-email", "login-password"].forEach(function(id) {
+        document.getElementById(id).addEventListener("keydown", function(e) {
+          if (e.key === "Enter") document.getElementById("btn-login").click();
+        });
+      });
+
+    })();
   </script>
 
 </body>

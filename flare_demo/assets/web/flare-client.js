@@ -55,7 +55,7 @@ const SPINNER_HTML = `
 //   - One screen can only have one event in flight at a time
 //   - The client is truly dumb — no business logic, pure UI feedback
 // ---------------------------------------------------------------------------
-const PENDING_VARIABLE = "local_flare_pending";
+
 
 export class FlareClient {
   constructor(config) {
@@ -67,6 +67,12 @@ export class FlareClient {
     this.socket         = null;
     this.currentChannel = null;
     this.currentScreen  = null;
+
+    // Tracks action names currently in flight (e.g. "increment", "save_profile").
+    // Used to clear the correct local_flare_pending_<action> variable when an
+    // action is abandoned (nav away, layout update, or unexpected error) or
+    // when its result arrives via "patch" before the channel ack does.
+    this.pendingActions = new Set();
 
     // Single global variable controller shared across all screens.
     // Variables persist through navigation — flare_cart_count stays
@@ -96,11 +102,15 @@ window.addEventListener("popstate", () => {
   connect() {
     this.log("Connecting...", this.wsUrl);
 
-    // Send whatever token we have — could be null on absolute first load.
-    // If null, server will generate a signed guest token and send it back
-    // via store_token in the init envelope. We store it and use it from then on.
-    // On all future page loads this.token will be set from localStorage in app.js.
-    const params = this.token ? { token: this.token } : {};
+    // Token is always required — obtained from /auth/guest or /auth/login
+// before this connect() is called. index.html guarantees this.
+// If somehow token is missing, fail loudly rather than connect anonymously.
+if (!this.token) {
+  console.error("[Flare] connect() called with no token. User must authenticate first.");
+  this._handleAuthFailure();
+  return;
+}
+const params = { token: this.token };
 
     this.socket = new Socket(this.wsUrl, { params });
     this.socket.connect();
@@ -142,11 +152,11 @@ window.addEventListener("popstate", () => {
     }
 
     // ---------------------------------------------------------------------------
-    // CHANGED: Clear pending state on navigation.
+    // Clear pending state on navigation.
     // When the user navigates to a new screen, any in-flight event from the
     // previous screen is abandoned. Reset pending so the new screen starts clean.
     // ---------------------------------------------------------------------------
-    this._setPending(false);
+    this._clearAllPending();
 
     // Show spinner immediately — user sees movement, not a frozen screen
     this._showSpinner();
@@ -165,9 +175,17 @@ window.addEventListener("popstate", () => {
         this._pushUrl(screenName);  // <-- ADD THIS LINE ONLY
       })
       .receive("error", (resp) => {
-        console.error(`❌ Failed to join flare:${screenName}`, resp);
-        this._showError(`Could not load screen: ${screenName}`);
-      });
+  console.error(`❌ Failed to join flare:${screenName}`, resp);
+  // Auth errors mean token is missing, expired, or invalid.
+  // Clear it and redirect to login so user can re-authenticate.
+  if (resp && (resp.reason === "authentication_required" ||
+               resp.reason === "session_expired" ||
+               resp.reason === "invalid_token")) {
+    this._handleAuthFailure();
+  } else {
+    this._showError(`Could not load screen: ${screenName}`);
+  }
+});
   }
 
   // ---------------------------------------------------------------------------
@@ -189,12 +207,6 @@ window.addEventListener("popstate", () => {
     // Register variable type definitions from state JSON
     if (envelope.variables) {
       envelope.variables.forEach(v => {
-        // Skip if developer accidentally named a variable local_flare_pending.
-        // SDK owns this name. Silently protect it.
-        if (v.name === PENDING_VARIABLE) {
-          console.warn(`[Flare] ⚠️ Reserved variable name used: "${PENDING_VARIABLE}". Ignoring developer definition.`);
-          return;
-        }
         this._setVariable(v.name, v.type, v.value);
       });
     }
@@ -270,16 +282,17 @@ window.addEventListener("popstate", () => {
     }
 
     // ---------------------------------------------------------------------------
-    // CHANGED: Clear pending when patch arrives.
+    // Clear pending when patch arrives.
     // The patch IS the server's response to the event. When it arrives,
-    // the operation is complete. Release the pending lock so the next
+    // the operation is complete. Release the pending lock(s) so the next
     // action can be taken.
     //
     // This works even if the ACK and the patch arrive in different order —
     // whichever arrives first clears pending. The second one is a no-op
-    // because _setPending(false) on an already-false variable does nothing.
+    // because clearing an already-cleared (removed from the Set) action does
+    // nothing the second time .receive("ok"/...) fires.
     // ---------------------------------------------------------------------------
-    
+    this._clearAllPending();
 
     if (envelope.commands) {
       envelope.commands.forEach(cmd => this._executeCommand(cmd));
@@ -302,10 +315,12 @@ window.addEventListener("popstate", () => {
     }
 
     // ---------------------------------------------------------------------------
-    // CHANGED: Always restore local_flare_pending to false on layout update.
+    // Always clear any in-flight pending state on layout update.
     // A layout update during an in-flight event would be unusual, but if it
     // happens, start the new layout with a clean pending state.
     // ---------------------------------------------------------------------------
+    this._clearAllPending();
+
     // Reset all per-action pending vars on new screen load
     // Auto scan layout and register pending var for every action found
     this._registerActionPendingVars(envelope.layout);
@@ -313,7 +328,6 @@ window.addEventListener("popstate", () => {
     // Re-register variable definitions, restoring saved values
     if (envelope.variables) {
       envelope.variables.forEach(v => {
-        if (v.name === PENDING_VARIABLE) return; // SDK owns this
         const value = savedValues[v.name] !== undefined ? savedValues[v.name] : v.value;
         this._setVariable(v.name, v.type, value);
       });
@@ -389,9 +403,11 @@ if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
       }
 
       this.log(`📤 Event: ${eventType}`, payload);
-
-      // Lock only this action before push
+            
+      // Lock only this action before push, and track it so navigation,
+      // layout updates, errors, or an incoming patch can clear it correctly.
       this._setVariable(actionPendingVar, "boolean", true);
+      this.pendingActions.add(eventType);
 
       this.currentChannel
         .push("event", {
@@ -402,21 +418,24 @@ if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
         .receive("ok", () => {
           this.log(`✅ ACK received: ${eventType}`);
           this._setVariable(actionPendingVar, "boolean", false);
+          this.pendingActions.delete(eventType);
         })
         .receive("error", (resp) => {
           console.error(`[Flare] ❌ Event rejected: ${eventType}`, resp);
           this._setVariable(actionPendingVar, "boolean", false);
+          this.pendingActions.delete(eventType);
         })
         .receive("timeout", () => {
           console.error(`[Flare] ⏱ Event timeout: ${eventType}`);
           this._setVariable(actionPendingVar, "boolean", false);
+          this.pendingActions.delete(eventType);
         });
       }
     } catch (e) {
       // ---------------------------------------------------------------------------
       // Unexpected error in action handling. Clear pending so UI is not stuck.
       // ---------------------------------------------------------------------------
-      this._setPending(false);
+      this._clearAllPending();
       console.error("[Flare] Action handler error", e);
     }
   }
@@ -437,43 +456,22 @@ if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
         alert(`${cmd.payload.title}\n\n${cmd.payload.message}`);
         break;
 
+      
       case "store_token": {
-        const isFirstToken = !localStorage.getItem("flare_token");
-        localStorage.setItem("flare_token", cmd.payload.token);
-        this.token = cmd.payload.token;
-
-        // If this is the first token we've received this session,
-        // the socket connected anonymously. We must reconnect it now
-        // so all future channel joins use the signed identity.
-        // Without this, state cannot be restored within the same session.
-        if (isFirstToken) {
-          this.log("First token received — reconnecting socket with identity");
-          const screenToRejoin = this.currentScreen;
-
-          if (this.currentChannel) {
-            this.currentChannel.leave();
-            this.currentChannel = null;
-          }
-          if (this.socket) {
-            this.socket.disconnect();
-            this.socket = null;
-          }
-
-          // Short delay to let the old connection close cleanly
-          setTimeout(() => {
-            this.connect();
-            if (screenToRejoin) this.navigateTo(screenToRejoin);
-          }, 300);
-        }
-        break;
-      }
-
+  // Server can still refresh/rotate a token mid-session.
+  // Just save it — no reconnect needed since we already have identity.
+  localStorage.setItem("flare_token", cmd.payload.token);
+  this.token = cmd.payload.token;
+  this.log("Token refreshed by server");
+  break;
+}
       case "clear_storage":
-        // Full logout — remove token so next connect is anonymous again.
-        // Server will issue a fresh guest token on next connection.
-        localStorage.removeItem("flare_token");
-        this.token = null;
-        break;
+  // Logout — clear token then redirect to login page.
+  // Next connection requires fresh authentication (guest or real).
+  localStorage.removeItem("flare_token");
+  this.token = null;
+  this._handleAuthFailure();
+  break;
 
       case "haptic":
         if (navigator.vibrate) navigator.vibrate(50);
@@ -485,23 +483,24 @@ if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
   }
 
   // ---------------------------------------------------------------------------
-  // _setPending — set local_flare_pending variable value
+  // _clearAllPending — clear every currently in-flight per-action pending var
   //
-  // CHANGED: Extracted into its own method because it is called from 5 places:
-  //   _handleAction (set true before push, set false on ack/error/timeout)
-  //   _handlePatch  (set false when patch arrives)
-  //   navigateTo    (set false on screen change)
-  //   _handleLayoutUpdate (set false on layout refresh)
+  // Called from 4 places:
+  //   _handleAction catch block (unexpected error — don't leave button stuck)
+  //   _handlePatch  (server result arrived — whatever was pending is done)
+  //   navigateTo    (leaving the screen abandons any in-flight action)
+  //   _handleLayoutUpdate (hot layout reload abandons any in-flight action)
   //
-  // If the variable does not exist yet (screen not initialized), this is a no-op.
-  // The variable is always created in _handleInit before any actions are possible.
+  // Each per-action variable is created lazily the first time that action
+  // fires (see _handleAction), so this only touches variables that exist.
   // ---------------------------------------------------------------------------
-  _setPending(value) {
-    const variable = this.globalController.getVariable(PENDING_VARIABLE);
-    if (variable) {
-      variable.setValue(value);
-      this.log(`🔒 Pending: ${value}`);
-    }
+  _clearAllPending() {
+    this.pendingActions.forEach(actionName => {
+      const varName = `local_flare_pending_${actionName}`;
+      this._setVariable(varName, "boolean", false);
+      this.log(`🔓 Cleared pending: ${actionName}`);
+    });
+    this.pendingActions.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -545,4 +544,37 @@ if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
       ">${message}</div>
     `;
   }
+
+  // ---------------------------------------------------------------------------
+// _handleAuthFailure — token missing, expired, or rejected by server.
+// Cleans up the connection and returns user to the login screen.
+// ---------------------------------------------------------------------------
+_handleAuthFailure() {
+  this.log("Auth failure — clearing session and returning to login");
+
+  localStorage.removeItem("flare_token");
+  this.token = null;
+
+  if (this.currentChannel) {
+    this.currentChannel.leave();
+    this.currentChannel = null;
+  }
+  if (this.socket) {
+    this.socket.disconnect();
+    this.socket = null;
+  }
+
+  // Works for both same-page login (index.html with two divs)
+  // and separate login page setups.
+  const loginDiv = document.getElementById("flare-login");
+  const rootDiv  = document.getElementById("flare-root");
+  if (loginDiv && rootDiv) {
+    // Same-page login — just toggle visibility
+    loginDiv.style.display = "flex";
+    rootDiv.style.display  = "none";
+  } else {
+    // Separate login page
+    window.location.href = "/login";
+  }
+}
 }

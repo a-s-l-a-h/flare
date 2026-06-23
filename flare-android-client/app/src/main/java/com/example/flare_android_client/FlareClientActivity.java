@@ -82,6 +82,7 @@ public class FlareClientActivity extends AppCompatActivity {
     // ── Intent extras (passed from MainActivity) ────────────────────────────
     public static final String EXTRA_WS_URL      = "flare_ws_url";
     public static final String EXTRA_ENTRY_SCREEN = "flare_entry_screen";
+    public static final String EXTRA_TOKEN       = "flare_token";
 
     // ── SharedPreferences (for store_token / clear_storage commands) ─────────
     private static final String PREF_FILE     = "flare_prefs";
@@ -141,9 +142,16 @@ public class FlareClientActivity extends AppCompatActivity {
      * @param entryScreen First Flare screen to join, e.g. "welcome"
      */
     public static void launch(Context context, String wsUrl, String entryScreen) {
+        launch(context, wsUrl, entryScreen, null);
+    }
+
+    public static void launch(Context context, String wsUrl, String entryScreen, String token) {
         Intent intent = new Intent(context, FlareClientActivity.class);
         intent.putExtra(EXTRA_WS_URL, wsUrl);
         intent.putExtra(EXTRA_ENTRY_SCREEN, entryScreen);
+        if (token != null) {
+            intent.putExtra(EXTRA_TOKEN, token);
+        }
         context.startActivity(intent);
     }
 
@@ -292,6 +300,12 @@ public class FlareClientActivity extends AppCompatActivity {
         // If nothing is stored yet, connect with no token — the server will
         // generate and sign a guest token, sending it back via store_token.
         // storeToken() below saves it to PREF_TOKEN for all future connects.
+        // Accept token passed directly via Intent (e.g. from LoginActivity after auth)
+        String intentToken = getIntent().getStringExtra(EXTRA_TOKEN);
+        if (intentToken != null) {
+            prefs.edit().putString(PREF_TOKEN, intentToken).apply();
+        }
+
         String storedToken = prefs.getString(PREF_TOKEN, null);
 
         if (storedToken != null) {
@@ -377,8 +391,6 @@ public class FlareClientActivity extends AppCompatActivity {
         }
 
         // ── Clear all pending state — new screen starts fresh ─────────────────
-        // No need to clear per-action vars individually — new screen will
-        // call registerActionPendingVars which resets all of them to false
         isEventPending = false;
         pendingActions.clear();
 
@@ -386,10 +398,9 @@ public class FlareClientActivity extends AppCompatActivity {
         runOnUiThread(this::showSpinner);
 
         // ── Update back stack ──────────────────────────────────────────────────
-        // Don't push the same screen twice in a row
         if (!screenName.equals(currentScreen)) {
             if (currentScreen != null) backStack.push(currentScreen);
-            currentDiv2View = null; // 🔥 FIX: Clean slate for new page
+            currentDiv2View = null; // Clean slate for new page
         }
         currentScreen = screenName;
 
@@ -397,7 +408,6 @@ public class FlareClientActivity extends AppCompatActivity {
         String topic = "flare:" + screenName;
         currentChannel = socket.channel(topic, params);
 
-        // Register listeners BEFORE joining (to not miss early messages)
         currentChannel.on("init",          (payload, ref, joinRef) -> {
             Log.d(TAG, "INIT received for screen: " + screenName);
             runOnUiThread(() -> handleInit(payload));
@@ -415,11 +425,19 @@ public class FlareClientActivity extends AppCompatActivity {
         currentChannel.join()
                 .receive("ok", (p, r, jr) -> {
                     Log.d(TAG, "Joined channel: " + topic);
-                    // Server will send "init" shortly; spinner stays until then
                 })
                 .receive("error", (p, r, jr) -> {
                     Log.e(TAG, "Failed to join channel: " + topic + " payload=" + p);
-                    runOnUiThread(() -> showError("Could not load screen: " + screenName));
+                    String reason = p != null ? p.optString("reason", "") : "";
+
+                    if ("authentication_required".equals(reason) ||
+                            "session_expired".equals(reason) ||
+                            "invalid_token".equals(reason)) {
+                        Log.e(TAG, "Auth failed via socket — redirecting to login");
+                        runOnUiThread(this::clearStorage);
+                    } else {
+                        runOnUiThread(() -> showError("Could not load screen: " + screenName));
+                    }
                 })
                 .receive("timeout", (p, r, jr) -> {
                     Log.e(TAG, "Timeout joining channel: " + topic);
@@ -1012,11 +1030,12 @@ public class FlareClientActivity extends AppCompatActivity {
      * Clear stored auth token (from Flare clear_storage command — i.e. logout).
      */
     public void clearStorage() {
-        Log.d(TAG, "clearStorage: removing auth token");
+        Log.d(TAG, "clearStorage: removing auth token and returning to login");
         getSharedPreferences(PREF_FILE, MODE_PRIVATE)
                 .edit()
                 .remove(PREF_TOKEN)
                 .apply();
+        finish(); // Closes FlareClientActivity, throwing user back to previous screen
     }
 
     /**

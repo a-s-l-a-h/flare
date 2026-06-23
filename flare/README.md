@@ -418,12 +418,14 @@ defmodule MyApp.UserSocket do
   def connect(%{"token" => token}, socket, _connect_info) do
     case Phoenix.Token.verify(MyApp.Endpoint, "user_auth", token, max_age: 86_400) do
       {:ok, user_id} -> {:ok, assign(socket, :user_id, user_id)}
-      {:error, _}    -> {:ok, assign(socket, :user_id, nil)}
+      {:error, :expired} -> {:error, %{reason: "session_expired"}}
+      {:error, _}        -> {:error, %{reason: "invalid_token"}}
     end
   end
 
-  def connect(_params, socket, _connect_info) do
-    {:ok, assign(socket, :user_id, nil)}
+  # Hard reject connections without a token
+  def connect(_params, _socket, _connect_info) do
+    {:error, %{reason: "authentication_required"}}
   end
 
   @impl true
@@ -597,36 +599,45 @@ Flare.broadcast_to_screen("store", %{flare_sale_active: true})
 
 ----------
 
-## Authentication
+## Authentication Contract
+
+Flare expects the host application to handle identity **before** the WebSocket connects. 
+Clients (both real users and guests) must obtain a signed `Phoenix.Token` from your HTTP API (e.g., `POST /auth/login` or `POST /auth/guest`), and pass it when connecting.
+
+Flare hard-rejects any connection where `socket.assigns.user_id` is nil. Because of this, you **never** need to check `is_nil(socket.user_id)` in your `mount/2` functions. If `mount/2` is called, the user is guaranteed to be authenticated.
 
 ```elixir
-# Generate token on login
-token = Phoenix.Token.sign(MyApp.Endpoint, "user_auth", user.id)
-socket |> store_token(token)
+# 1. Host App HTTP Endpoint (Before WebSocket opens)
+def login(conn, %{"email" => email, "password" => password}) do
+  {:ok, user_id} = MyApp.Accounts.authenticate(email, password)
+  token = Phoenix.Token.sign(MyApp.Endpoint, "user_auth", user_id)
+  json(conn, %{token: token})
+end
 
-# Validate in UserSocket
+# 2. Phoenix UserSocket (Validates the token)
 def connect(%{"token" => token}, socket, _connect_info) do
   case Phoenix.Token.verify(MyApp.Endpoint, "user_auth", token, max_age: 86_400) do
     {:ok, user_id} -> {:ok, assign(socket, :user_id, user_id)}
-    {:error, _}    -> {:ok, assign(socket, :user_id, nil)}
+    {:error, _}    -> {:error, %{reason: "invalid_token"}}
   end
 end
 
-# Use in screen modules
+def connect(_params, _socket, _connect_info) do
+  {:error, %{reason: "authentication_required"}}
+end
+
+# 3. Flare Screen (Always authenticated!)
 def mount(_params, socket) do
-  if is_nil(socket.user_id) do
-    socket |> navigate("login") |> then(&{:ok, &1})
-  else
-    {:ok, assign(socket, flare_username: "...")}
-  end
+  # Safe to fetch user directly
+  user = MyApp.Accounts.get_user!(socket.user_id)
+  {:ok, assign(socket, flare_username: user.name)}
 end
 
-# Logout
+# 4. Logout (Clears storage, client disconnects and shows login UI)
 def handle_event("logout", _payload, socket) do
   Flare.UserState.stop(socket.user_id)
   socket
   |> clear_storage()
-  |> navigate("welcome")
   |> then(&{:noreply, &1})
 end
 

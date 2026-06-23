@@ -9,134 +9,118 @@ defmodule Flare.Channel do
   Wire it in your UserSocket:
 
       channel "flare:*", Flare.Channel
+
+  ## Authentication contract
+
+  Flare.Channel expects the host application's UserSocket to have already
+  verified the client's token and assigned a non-nil user_id:
+
+      assign(socket, :user_id, user_id)
+
+  Flare never creates identities or issues tokens. That is the host
+  application's responsibility. Both real users and guests must obtain
+  a signed token from the host app (e.g. POST /auth/guest or POST /auth/login)
+  BEFORE opening the WebSocket. If user_id is nil, the join is rejected.
   """
 
   use Phoenix.Channel
 
   def join("flare:" <> screen_name, params, channel_socket) do
-    # user_id from UserSocket — nil means first ever connection, no token sent.
-    # For returning guests: already a "guest_XXX" string (verified by signature).
-    # For real users: whatever ID was signed into their auth token.
     user_id = channel_socket.assigns[:user_id]
+
     Flare.Logger.info(__MODULE__, "Joining screen: #{screen_name} | user: #{inspect(user_id)}")
 
-    # ── Determine the final user identity ──────────────────────────────────
-    # If user_id is nil (first ever connection), we generate and sign a guest
-    # ID RIGHT NOW — before loading state — so get_all/1 uses the correct ID.
-    # If user_id is already set, use it as-is (no new token needed).
-    {final_user_id, guest_command} =
-      if is_nil(user_id) do
-        # Generate a cryptographically random guest ID
-        gid = "guest_" <> Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
+    # ── Hard gate ─────────────────────────────────────────────────────────────
+    # user_id MUST be set by the host app's UserSocket.connect/3 before we
+    # get here. Flare is a library — it never issues tokens or creates
+    # identities. Both guests and real users must go through the host app's
+    # auth endpoints first.
+    #
+    # If user_id is nil here, the host app's UserSocket allowed an
+    # unauthenticated connection through — that is a misconfiguration.
+    # Reject immediately with a clear error so the developer knows what to fix.
+    # ─────────────────────────────────────────────────────────────────────────
+    if is_nil(user_id) do
+      Flare.Logger.error(
+        __MODULE__,
+        "Rejected join for screen '#{screen_name}' — user_id is nil. " <>
+        "Your UserSocket.connect/3 must verify the token and assign :user_id. " <>
+        "See Flare.Channel moduledoc for the authentication contract."
+      )
+      {:error, %{"reason" => "authentication_required"}}
+    else
+      do_join(screen_name, params, channel_socket, user_id)
+    end
+  end
 
-        # Sign it with Phoenix.Token so the client cannot forge or tamper with it.
-        # The client will store this signed string and send it on every future connect.
-        # UserSocket.connect/3 will verify the signature and extract the guest ID.
-        endpoint = Application.get_env(:flare, :endpoint) ||
-          raise """
-          Flare: missing endpoint config.
-          Add this to config/config.exs:
-              config :flare, endpoint: MyApp.Endpoint
-          """
-        # ─────────────────────────────────────────────────────────────────────────
-        # SECURITY FIX v1.0: Guest tokens are now signed with the "flare_guest"
-        # salt, NOT "flare_session".
-        #
-        # This salt separation is critical:
-        #   - "flare_guest"   is verified with max_age: 2_592_000 (30 days)
-        #   - "flare_session" is verified with max_age: 86_400    (24 hours)
-        #
-        # If both used "flare_session", a guest token would expire in 24 hours,
-        # locking anonymous users out of their cart/session data every day.
-        # Guest tokens intentionally live longer — 30 days without activity means
-        # the user has likely abandoned the session anyway.
-        #
-        # A malicious user CANNOT use a guest token as a real-user token because
-        # user_socket.ex verifies them with different salts in sequence.
-        # ─────────────────────────────────────────────────────────────────────────
-        signed = Phoenix.Token.sign(endpoint, "flare_guest", gid)
-
-        # store_token command — client SDK will call localStorage.setItem / SharedPreferences
-        command = %{"type" => "store_token", "payload" => %{"token" => signed}}
-        {gid, [command]}
-      else
-        # Returning user — we already have a verified identity, no new token needed.
-        {user_id, []}
-      end
-
-    # ── Start UserState AFTER we know the final user_id ────────────────────
-    # This is the critical ordering fix.
-    # The old broken version called ensure_started(nil) then loaded state for nil
-    # (empty map), then created a new guest ID — so state was always empty.
-    # Now we have final_user_id before touching UserState.
-    Flare.UserState.ensure_started(final_user_id)
+  defp do_join(screen_name, params, channel_socket, user_id) do
+    # ── Start UserState for this user ─────────────────────────────────────────
+    # ensure_started is idempotent — safe to call even if already running.
+    # Must happen before get_all/1 below.
+    Flare.UserState.ensure_started(user_id)
 
     # Subscribe to PubSub topics for this user and screen
-    Phoenix.PubSub.subscribe(Flare.PubSub, "user:#{final_user_id}")
-    Phoenix.PubSub.subscribe(Flare.PubSub, "screen:#{final_user_id}:#{screen_name}")
+    Phoenix.PubSub.subscribe(Flare.PubSub, "user:#{user_id}")
+    Phoenix.PubSub.subscribe(Flare.PubSub, "screen:#{user_id}:#{screen_name}")
 
     # Broadcasts to all users on this screen (no user_id needed for these)
     Phoenix.PubSub.subscribe(Flare.PubSub, "broadcast:#{screen_name}")
 
-    router      = Application.get_env(:flare, :router) ||
+    router = Application.get_env(:flare, :router) ||
       raise "Missing config: config :flare, router: MyApp.FlareRouter"
     screen_module = router.screen_for!(screen_name)
 
     # Restore saved state for this user.
-    # Now uses final_user_id — so returning guests get their saved count back.
-    # New guests get %{} (empty) which is correct — no previous state exists.
-    saved_assigns = Flare.UserState.get_all(final_user_id)
-    Flare.Logger.info(__MODULE__, "Restored assigns for #{final_user_id}: #{inspect(Map.keys(saved_assigns))}")
+    # Guests and real users are treated identically here —
+    # user_id is user_id regardless of how it was obtained.
+    saved_assigns = Flare.UserState.get_all(user_id)
+    Flare.Logger.info(__MODULE__, "Restored assigns for #{user_id}: #{inspect(Map.keys(saved_assigns))}")
 
     flare_socket = %Flare.Socket{
-          user_id:       final_user_id,
-          screen_module: screen_module,
-          screen_name:   screen_name,
-          assigns:       saved_assigns,
-          commands:      []
+      user_id:       user_id,
+      screen_module: screen_module,
+      screen_name:   screen_name,
+      assigns:       saved_assigns,
+      commands:      []
     }
 
     case Flare.Lifecycle.mount(screen_module, params, flare_socket) do
       {:ok, mounted_socket} ->
         envelope = Flare.Layout.build_init_envelope(screen_module, screen_name, mounted_socket.assigns)
-
-        # guest_command is either [] (returning user) or [store_token command] (new guest).
-        # The store_token command is merged into the init envelope by handle_info below.
-        # Client processes it immediately when init arrives — no separate round trip needed.
         new_channel_socket = assign(channel_socket, :flare_socket, mounted_socket)
-        send(self(), {:push_init, envelope, guest_command})
+        send(self(), {:push_init, envelope})
         {:ok, new_channel_socket}
 
       {:error, reason} ->
-        Flare.Logger.error(__MODULE__, "mount/2 rejected join for page #{screen_name}", reason)
+        Flare.Logger.error(__MODULE__, "mount/2 rejected join for screen #{screen_name}", reason)
         {:error, %{"reason" => "mount_rejected", "detail" => inspect(reason)}}
     end
   end
 
   def handle_in("event", %{"screen" => _screen, "type" => type, "payload" => payload}, channel_socket) do
-  flare_socket = channel_socket.assigns.flare_socket
-  old_assigns  = flare_socket.assigns
+    flare_socket = channel_socket.assigns.flare_socket
+    old_assigns  = flare_socket.assigns
 
-  flare_socket = %{flare_socket | commands: []}
+    flare_socket = %{flare_socket | commands: []}
 
-  case Flare.Lifecycle.handle_event(flare_socket.screen_module, type, payload, flare_socket) do
-    {:noreply, new_flare_socket} ->
-      diff     = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
-      commands = new_flare_socket.commands
+    case Flare.Lifecycle.handle_event(flare_socket.screen_module, type, payload, flare_socket) do
+      {:noreply, new_flare_socket} ->
+        diff     = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
+        commands = new_flare_socket.commands
 
-      channel_socket = push_diff_and_commands(channel_socket, diff, commands)
+        channel_socket = push_diff_and_commands(channel_socket, diff, commands)
 
-      # :ok reply tells the client push().receive("ok") to fire.
-      # This is the WebSocket equivalent of HTTP 200.
-      {:reply, :ok, assign(channel_socket, :flare_socket, new_flare_socket)}
+        # :ok reply tells the client push().receive("ok") to fire.
+        # This is the WebSocket equivalent of HTTP 200.
+        {:reply, :ok, assign(channel_socket, :flare_socket, new_flare_socket)}
 
-    {:error, reason} ->
-      # Developer's handle_event returned an error.
-      # Client push().receive("error") fires with the reason.
-      Flare.Logger.error(__MODULE__, "handle_event returned error for #{type}", reason)
-      {:reply, {:error, %{"reason" => inspect(reason)}}, channel_socket}
+      {:error, reason} ->
+        # Developer's handle_event returned an error.
+        # Client push().receive("error") fires with the reason.
+        Flare.Logger.error(__MODULE__, "handle_event returned error for #{type}", reason)
+        {:reply, {:error, %{"reason" => inspect(reason)}}, channel_socket}
+    end
   end
-end
 
   # Malformed event — log and ignore rather than crash
   def handle_in("event", bad_payload, channel_socket) do
@@ -149,18 +133,11 @@ end
     {:noreply, channel_socket}
   end
 
-  # Push INIT after join returns (client is now subscribed)
-  # Push INIT after join returns (client is now subscribed)
-  def handle_info({:push_init, envelope, extra_commands}, socket) do
-    # Merge any bootstrap commands (e.g. store_token for new guests)
-    # into the init envelope so client processes them immediately
-    envelope_with_commands =
-      if extra_commands == [] do
-        envelope
-      else
-        Map.put(envelope, "commands", extra_commands)
-      end
-    push(socket, "init", envelope_with_commands)
+  # Push INIT after join returns (client is now subscribed).
+  # No extra commands here — token was issued by the host app over HTTP
+  # before the WebSocket opened. No store_token round trip needed.
+  def handle_info({:push_init, envelope}, socket) do
+    push(socket, "init", envelope)
     {:noreply, socket}
   end
 
@@ -244,7 +221,7 @@ end
     flare_socket = %{flare_socket | commands: []}
 
     {:noreply, new_flare_socket} =
-        Flare.Lifecycle.handle_info(flare_socket.screen_module, message, flare_socket)
+      Flare.Lifecycle.handle_info(flare_socket.screen_module, message, flare_socket)
 
     diff     = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
     commands = new_flare_socket.commands
@@ -254,28 +231,23 @@ end
     {:noreply, assign(channel_socket, :flare_socket, new_flare_socket)}
   end
 
-  # def terminate(reason, _channel_socket) do
-  #   Flare.Logger.info(__MODULE__, "Channel terminating: #{inspect(reason)}")
-  #   :ok
-  # end
-
   def terminate(reason, channel_socket) do
-  Flare.Logger.info(__MODULE__, "Channel terminating: #{inspect(reason)}")
+    Flare.Logger.info(__MODULE__, "Channel terminating: #{inspect(reason)}")
 
-  # Save full state on EVERY disconnect, including peer_closed (OS killed socket).
-  # push_diff_and_commands only saves diffs when events fire — if the connection
-  # drops between events, the last in-memory state is lost without this save.
-  # This is the fix for flare_clicks resetting to 0 after Android backgrounds the app.
-  case channel_socket.assigns do
-    %{flare_socket: %{user_id: user_id, assigns: assigns}} when not is_nil(user_id) ->
-      Flare.Logger.info(__MODULE__, "Saving state on terminate for #{user_id}: #{inspect(Map.keys(assigns))}")
-      Flare.UserState.save(user_id, assigns)
-    _ ->
-      :ok
+    # Save full state on EVERY disconnect, including peer_closed (OS killed socket).
+    # push_diff_and_commands only saves diffs when events fire — if the connection
+    # drops between events, the last in-memory state is lost without this save.
+    # This is the fix for flare_clicks resetting to 0 after Android backgrounds the app.
+    case channel_socket.assigns do
+      %{flare_socket: %{user_id: user_id, assigns: assigns}} when not is_nil(user_id) ->
+        Flare.Logger.info(__MODULE__, "Saving state on terminate for #{user_id}: #{inspect(Map.keys(assigns))}")
+        Flare.UserState.save(user_id, assigns)
+      _ ->
+        :ok
+    end
+
+    :ok
   end
-
-  :ok
-end
 
   defp push_diff_and_commands(channel_socket, diff, commands) do
     flare_socket = channel_socket.assigns.flare_socket

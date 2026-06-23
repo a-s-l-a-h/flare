@@ -9,6 +9,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.content.Intent;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -78,14 +79,27 @@ public class MainActivity extends AppCompatActivity {
             String portStr = port != -1 ? ":" + port : "";
             String wsUrl = wsScheme + "://" + host + portStr + "/socket";
 
-            // 🔥 FIX: Dynamically extract screen name from URL
+            // Dynamically extract screen name from URL
             String path = uri.getPath();
             String entryScreen = "welcome"; // Default
             if (path != null && path.length() > 1) {
-                entryScreen = path.substring(1); // Removes the "/" to get "cart", "profile", etc.
+                entryScreen = path.substring(1); // Removes the "/"
             }
 
-            FlareClientActivity.launch(this, wsUrl, entryScreen);
+            // Check for existing token
+            String storedToken = getSharedPreferences(PREF_FILE, MODE_PRIVATE).getString("flare_auth_token", null);
+
+            if (storedToken != null) {
+                // Already logged in! Skip directly to Flare.
+                FlareClientActivity.launch(this, wsUrl, entryScreen);
+            } else {
+                // Needs to log in. Launch LoginActivity with our URLs.
+                Intent intent = new Intent(this, LoginActivity.class);
+                intent.putExtra("base_http_url", urlString.replaceAll("/+$", "")); // trim trailing slash
+                intent.putExtra("ws_url", wsUrl);
+                intent.putExtra("entry_screen", entryScreen);
+                startActivity(intent);
+            }
 
         } catch (Exception e) {
             Log.e(TAG, "Failed to parse URL", e);

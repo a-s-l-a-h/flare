@@ -4,12 +4,7 @@ defmodule Flare.UserState do
   @moduledoc """
   One GenServer process per connected user.
 
-  Caches server-side state, lazy-loads missing keys via `Flare.StateLoader`,
-  and broadcasts global state changes via PubSub.
-
-  Configure a state loader in `config/config.exs`:
-
-      config :flare, state_loader: MyApp.FlareStateLoader
+  Caches server-side state,
 
   ## Idle timeout
 
@@ -147,7 +142,7 @@ end
       |> Map.merge(new_values)
       |> Map.reject(fn {_, v} -> is_nil(v) end)
       # nil values are intentional removals — purge from cache entirely.
-      # Next get/2 call will reload from state_loader.
+     
 
     diff = Flare.Diff.compute(state.data, new_data)
 
@@ -223,5 +218,5 @@ end
     Application.get_env(:flare, :user_state_timeout, @default_timeout)
   end
 
-  
+
 end
