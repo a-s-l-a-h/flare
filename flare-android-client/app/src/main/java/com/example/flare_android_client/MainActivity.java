@@ -73,13 +73,26 @@ public class MainActivity extends AppCompatActivity {
         try {
             Uri uri = Uri.parse(urlString);
 
-            String wsScheme = "https".equals(uri.getScheme()) ? "wss" : "ws";
+            String httpScheme = "https".equals(uri.getScheme()) ? "https" : "http";
+            String wsScheme   = "https".equals(uri.getScheme()) ? "wss"   : "ws";
             String host = uri.getHost();
             int port = uri.getPort();
             String portStr = port != -1 ? ":" + port : "";
-            String wsUrl = wsScheme + "://" + host + portStr + "/socket";
 
-            // Dynamically extract screen name from URL
+            // ── Build base HTTP URL from scheme+host+port ONLY ──────────────
+            // CRITICAL: do NOT include uri.getPath() here. If the developer
+            // types e.g. "http://10.0.2.2:4000/profile" to jump straight to
+            // the profile screen, the path "/profile" must NOT leak into the
+            // base URL used for auth requests — otherwise LoginActivity builds
+            // "http://10.0.2.2:4000/profile/auth/guest" instead of the real
+            // route "http://10.0.2.2:4000/auth/guest", and the very first
+            // guest/login attempt fails with a 404 until the user happens to
+            // retry from the root URL instead.
+            String baseHttpUrl = httpScheme + "://" + host + portStr;
+            String wsUrl       = wsScheme + "://" + host + portStr + "/socket";
+
+            // Dynamically extract screen name from URL — this is the ONLY
+            // place uri.getPath() should be used.
             String path = uri.getPath();
             String entryScreen = "welcome"; // Default
             if (path != null && path.length() > 1) {
@@ -95,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 // Needs to log in. Launch LoginActivity with our URLs.
                 Intent intent = new Intent(this, LoginActivity.class);
-                intent.putExtra("base_http_url", urlString.replaceAll("/+$", "")); // trim trailing slash
+                intent.putExtra("base_http_url", baseHttpUrl);
                 intent.putExtra("ws_url", wsUrl);
                 intent.putExtra("entry_screen", entryScreen);
                 startActivity(intent);
