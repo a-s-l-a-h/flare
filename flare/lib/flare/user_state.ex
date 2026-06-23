@@ -4,7 +4,46 @@ defmodule Flare.UserState do
   @moduledoc """
   One GenServer process per connected user.
 
-  Caches server-side state,
+  Caches server-side state.
+
+  ## Security model: tokens are signed, not revocable
+
+  Flare itself does NOT issue tokens. Token issuance (e.g. `/auth/login`,
+  `/auth/guest`) is entirely the host application's responsibility — see
+  `FlareDemo.AuthController` for a reference implementation. Flare's only
+  job is to **verify** the token inside the host app's `UserSocket.connect/3`
+  callback and gate channel joins on a non-nil `user_id` (see
+  `Flare.Channel.join/3`).
+
+  Because verification is built on `Phoenix.Token`, the following
+  properties come from Phoenix itself, not from anything Flare adds:
+
+  - Tokens are **signed**, not encrypted. Anyone holding a token can
+    decode and read the `user_id`/`guest_id` payload in plaintext.
+    The signature only prevents forgery and tampering — never put
+    secrets (passwords, payment info, etc.) inside the token payload.
+
+  - Tokens have **no revocation mechanism**. Once issued, a token
+    remains valid until it expires (`max_age`), even if the user logs
+    out, is banned, or their password changes elsewhere in the host
+    app. `Flare.Commands.clear_storage/1` only removes the token from
+    the *client* device — a copy used elsewhere (e.g. if it leaked, or
+    was captured before logout) remains valid until expiry.
+
+  - The reference `UserSocket.connect/3` in `flare_demo` chooses
+    `max_age: 86_400` (24h) for real sessions and `max_age: 2_592_000`
+    (30 days) for guests. These are host-app choices, not Flare
+    defaults — Flare imposes no `max_age` of its own. Pick values that
+    fit your own risk tolerance when writing your own `UserSocket`.
+
+  ### If you need revocation or shorter-lived sessions
+
+  Add a denylist check inside your own `UserSocket.connect/3` (Redis,
+  ETS, or a DB table of revoked token jtis/timestamps) and reject the
+  connection if the token predates a user's "logout all sessions"
+  timestamp. This is intentionally left to the host application, since
+  storage requirements vary (ETS is fine single-node; multi-node
+  deployments need a shared store).
 
   ## Idle timeout
 
@@ -142,7 +181,7 @@ end
       |> Map.merge(new_values)
       |> Map.reject(fn {_, v} -> is_nil(v) end)
       # nil values are intentional removals — purge from cache entirely.
-     
+
 
     diff = Flare.Diff.compute(state.data, new_data)
 

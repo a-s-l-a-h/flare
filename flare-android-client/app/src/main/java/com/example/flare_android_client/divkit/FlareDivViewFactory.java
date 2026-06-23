@@ -27,29 +27,11 @@ public class FlareDivViewFactory {
 
     /**
      * Takes the "layout" JSON from the server envelope and builds a Div2View.
+     *
+     * Note: the global variables controller is attached at the Div2Context /
+     * DivConfiguration level (see FlareClientActivity.setupDivKit()), not here —
+     * DivKit wires it in automatically once configured that way.
      */
-//    public Div2View createView(JSONObject layoutJson) {
-//        // 1. Setup parsing environment. ASSERT logs errors to logcat.
-//        DivParsingEnvironment environment = new DivParsingEnvironment(ParsingErrorLogger.ASSERT);
-//
-//        // NOTE: Flare sends the card directly without a 'templates' wrapper currently.
-//        // If you ever add templates in Elixir, you would parse them into the environment here.
-//
-//        // 2. Parse the card data
-//        DivData divData = com.yandex.div2.DivData.Companion.fromJson(environment, layoutJson);
-//
-//        // 3. Create the native Android view
-//        Div2View div2View = new Div2View(context);
-//
-//        // 4. Attach the global variables controller (so state patches update the UI automatically)
-//        // Note: In newer DivKit versions, this is passed automatically via the Div2Context,
-//        // but it doesn't hurt to ensure variables are synced.
-//
-//        // 5. Set the data to render it
-//        div2View.setData(divData, new DivDataTag("flare_screen"));
-//
-//        return div2View;
-//    }
     public Div2View createView(JSONObject layoutJson) {
         // 1. Setup parsing environment. ASSERT logs errors to logcat.
         DivParsingEnvironment environment = new DivParsingEnvironment(ParsingErrorLogger.ASSERT);

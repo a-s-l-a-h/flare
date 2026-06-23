@@ -2,7 +2,7 @@
 
 **Server-Driven UI for Elixir + Phoenix & DivKit.**
 
-Build native Android, iOS, and Web apps from a single Elixir codebase. The server owns all UI and business logic. Clients are intentionally "dumb" — they simply render the JSON layouts the server sends, fire events when the user taps, and update their UI variables when patches arrive from the server. Nothing more.
+Build native Android and Web apps from a single Elixir codebase. The server owns all UI and business logic. Clients are intentionally "dumb" — they simply render the JSON layouts the server sends, fire events when the user taps, and update their UI variables when patches arrive from the server. Nothing more.
 
 > ⚠️ **This is a proof of concept — version 0.5, not production ready.**
 > It demonstrates the SDUI architecture and core ideas. APIs will change. Use it to understand the pattern, run the demo, and build on these concepts.

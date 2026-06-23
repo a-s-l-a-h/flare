@@ -165,6 +165,10 @@ public class FlareDivActionHandler extends DivActionHandler {
      * Falls back to "" if the variable cannot be found, logging a warning
      * so the developer knows which variable was unresolvable.
      */
+    // Tracks whether ALL resolution tiers have ever failed in this process.
+    // Once true, we stop silently swallowing failures — see comment below.
+    private static volatile boolean allTiersConfirmedBroken = false;
+
     private String resolveExpression(String raw) {
         if (!raw.startsWith("@{") || !raw.endsWith("}")) {
             return raw; // plain string — not an expression
@@ -181,8 +185,51 @@ public class FlareDivActionHandler extends DivActionHandler {
         String tier2 = tryReflectedMap(varName);
         if (tier2 != null) return tier2;
 
-        Log.w(TAG, "Could not resolve @{" + varName + "} — returning empty string");
+        // ─────────────────────────────────────────────────────────────────
+        // ALL TIERS FAILED FOR THIS VARIABLE.
+        //
+        // This almost always means the DivKit version in use has changed its
+        // internal structure (renamed/relocated the variables map, or removed
+        // the getVariables()/get(name) accessors) and our reflection fallback
+        // can no longer find it. Silently returning "" here is dangerous:
+        // form fields, payment amounts, search queries, etc. would silently
+        // submit empty strings to the server with no visible symptom beyond
+        // "this feature doesn't work" — very hard to debug in production.
+        //
+        // We log at ERROR (always visible, unlike DEBUG/WARN which may be
+        // stripped in release builds) AND throw in debug builds so this is
+        // caught in development rather than shipped silently. In release
+        // builds we still return "" so we fail soft for end users, but the
+        // ERROR log line is permanent and unconditional.
+        // ─────────────────────────────────────────────────────────────────
+        Log.e(TAG, "FLARE INTEGRITY ERROR: Could not resolve @{" + varName + "} via any tier. " +
+                "This usually means the installed DivKit version changed its internal " +
+                "variable storage and Flare's reflection fallback (tryKotlinAccessor / " +
+                "tryReflectedMap) is no longer compatible. Check the DivKit version in " +
+                "build.gradle against the version Flare was last verified against, and " +
+                "file an issue at the Flare repo with both version numbers.");
+
+        allTiersConfirmedBroken = true;
+
+        // NOTE: We deliberately do NOT gate this on BuildConfig.DEBUG. Newer
+        // Android Gradle Plugin versions disable BuildConfig generation by
+        // default (buildConfig = true must be opted into per-module), so
+        // relying on it here would make Flare's compile success dependent
+        // on a host app's gradle settings — not acceptable for a library.
+        // The Log.e above is unconditional and always visible, which gives
+        // the same "fail loudly in development" benefit without a hard
+        // dependency on BuildConfig existing at all.
         return "";
+    }
+
+    /**
+     * Returns true if variable resolution has failed at least once via all tiers
+     * during this process lifetime. Host apps can poll this (e.g. in a health
+     * check or analytics ping) to detect a broken DivKit upgrade in production
+     * without needing the user to report a silent form-submission bug.
+     */
+    public static boolean hasResolutionEverFailedCompletely() {
+        return allTiersConfirmedBroken;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -322,351 +369,3 @@ public class FlareDivActionHandler extends DivActionHandler {
 
 
 
-
-//===================== reference =============================
-//package com.example.flare_android_client.divkit;
-//
-//import android.net.Uri;
-//import android.util.Log;
-//
-//import com.yandex.div.core.DivActionHandler;
-//import com.yandex.div.core.DivViewFacade;
-//import com.yandex.div.core.expression.variables.DivVariableController;
-//import com.yandex.div.data.Variable;
-//import com.yandex.div.json.expressions.ExpressionResolver;
-//import com.yandex.div2.DivAction;
-//
-//import org.json.JSONObject;
-//
-//import java.util.Iterator;
-//import java.util.Map;
-//
-//public class FlareDivActionHandler extends DivActionHandler {
-//
-//    private static final String TAG = "FlareActionHandler";
-//    private static final String SCHEME_FLARE = "flare";
-//    private static final String HOST_ACTION = "action";
-//
-//    public interface FlareActionCallback {
-//        void onAction(String actionType, JSONObject payload);
-//    }
-//
-//    private final FlareActionCallback callback;
-//    private final DivVariableController variableController;
-//
-//    public FlareDivActionHandler(FlareActionCallback callback, DivVariableController variableController) {
-//        this.callback = callback;
-//        this.variableController = variableController;
-//    }
-//
-//    @Override
-//    public boolean handleAction(DivAction action, DivViewFacade view, ExpressionResolver resolver) {
-//        Uri url = action.url != null ? action.url.evaluate(resolver) : null;
-//
-//        if (url != null && SCHEME_FLARE.equals(url.getScheme()) && HOST_ACTION.equals(url.getHost())) {
-//            try {
-//                JSONObject rawPayload = action.payload != null ? action.payload : new JSONObject();
-//
-//                // 1. Resolve @{var_name} strings dynamically using our reflection workaround
-//                JSONObject resolvedPayload = resolvePayload(rawPayload);
-//
-//                String actionType = resolvedPayload.optString("flare_action");
-//
-//                if (actionType.isEmpty()) {
-//                    Log.w(TAG, "Action payload missing 'flare_action' key. Ignoring tap.");
-//                    return true;
-//                }
-//
-//                // 2. Pass the resolved payload to the Activity to send to Elixir
-//                callback.onAction(actionType, resolvedPayload);
-//                return true;
-//
-//            } catch (Exception e) {
-//                Log.e(TAG, "Failed to parse DivAction payload", e);
-//                return true;
-//            }
-//        }
-//
-//        return super.handleAction(action, view, resolver);
-//    }
-//
-//    /**
-//     * Walk the payload JSON and resolve any @{varName} strings
-//     */
-//    private JSONObject resolvePayload(JSONObject raw) throws Exception {
-//        JSONObject resolved = new JSONObject();
-//        Iterator<String> keys = raw.keys();
-//        while (keys.hasNext()) {
-//            String key = keys.next();
-//            Object value = raw.get(key);
-//            if (value instanceof String) {
-//                resolved.put(key, resolveValue((String) value));
-//            } else {
-//                resolved.put(key, value);
-//            }
-//        }
-//        return resolved;
-//    }
-//
-//    /**
-//     * Because DivKit Android hides the variables map, we use Java Reflection
-//     * to safely extract the value so form submission works properly.
-//     */
-//    private String resolveValue(String value) {
-//        if (!value.startsWith("@{") || !value.endsWith("}")) {
-//            return value;
-//        }
-//
-//        String varName = value.substring(2, value.length() - 1).trim();
-//
-//        try {
-//            // Safe reflection to access DivKit's private variables map
-//            for (java.lang.reflect.Field field : variableController.getClass().getDeclaredFields()) {
-//                if (Map.class.isAssignableFrom(field.getType())) {
-//                    field.setAccessible(true);
-//                    Map<?, ?> vars = (Map<?, ?>) field.get(variableController);
-//                    if (vars != null && vars.containsKey(varName)) {
-//                        Object v = vars.get(varName);
-//                        if (v instanceof Variable) {
-//                            return ((Variable) v).getValue().toString();
-//                        }
-//                    }
-//                    break;
-//                }
-//            }
-//        } catch (Exception e) {
-//            Log.w(TAG, "Could not resolve variable: " + varName, e);
-//        }
-//
-//        return "";
-//    }
-//}
-
-//package com.example.flare_android_client.divkit;
-//
-//import android.net.Uri;
-//import android.util.Log;
-//
-//import com.yandex.div.core.DivActionHandler;
-//import com.yandex.div.core.DivViewFacade;
-//import com.yandex.div.core.expression.variables.DivVariableController;
-//import com.yandex.div.data.Variable;
-//import com.yandex.div.json.expressions.ExpressionResolver;
-//import com.yandex.div2.DivAction;
-//
-//import org.json.JSONObject;
-//
-//import java.util.Iterator;
-//import java.util.Map;
-//
-//public class FlareDivActionHandler extends DivActionHandler {
-//
-//    private static final String TAG = "FlareActionHandler";
-//    private static final String SCHEME_FLARE = "flare";
-//    private static final String HOST_ACTION = "action";
-//
-//    public interface FlareActionCallback {
-//        void onAction(String actionType, JSONObject payload);
-//    }
-//
-//    private final FlareActionCallback callback;
-//    private final DivVariableController variableController;
-//
-//    public FlareDivActionHandler(FlareActionCallback callback, DivVariableController variableController) {
-//        this.callback = callback;
-//        this.variableController = variableController;
-//    }
-//
-//    @Override
-//    public boolean handleAction(DivAction action, DivViewFacade view, ExpressionResolver resolver) {
-//        Uri url = action.url != null ? action.url.evaluate(resolver) : null;
-//
-//        if (url != null && SCHEME_FLARE.equals(url.getScheme()) && HOST_ACTION.equals(url.getHost())) {
-//            try {
-//                JSONObject rawPayload = action.payload != null ? action.payload : new JSONObject();
-//
-//                // Resolve @{} expressions by reading from the variable controller
-//                JSONObject resolvedPayload = resolvePayload(rawPayload);
-//
-//                String actionType = resolvedPayload.optString("flare_action");
-//
-//                if (actionType.isEmpty()) {
-//                    Log.w(TAG, "Action payload missing 'flare_action' key. Ignoring tap.");
-//                    return true;
-//                }
-//
-//                callback.onAction(actionType, resolvedPayload);
-//                return true;
-//
-//            } catch (Exception e) {
-//                Log.e(TAG, "Failed to parse DivAction payload", e);
-//                return true;
-//            }
-//        }
-//
-//        return super.handleAction(action, view, resolver);
-//    }
-//
-//    /**
-//     * Walk the payload JSON and resolve any @{varName} strings
-//     * by reading from the DivVariableController directly.
-//     */
-//    private JSONObject resolvePayload(JSONObject raw) throws Exception {
-//        JSONObject resolved = new JSONObject();
-//        Iterator<String> keys = raw.keys();
-//        while (keys.hasNext()) {
-//            String key = keys.next();
-//            Object value = raw.get(key);
-//            if (value instanceof String) {
-//                resolved.put(key, resolveValue((String) value));
-//            } else {
-//                resolved.put(key, value);
-//            }
-//        }
-//        return resolved;
-//    }
-//
-//    /**
-//     * Safely extract the variable's value. Since DivKit hides the variable map
-//     * from Java, we use safe reflection to grab the values so form submits work.
-//     */
-//    @SuppressWarnings("unchecked")
-//    private String resolveValue(String value) {
-//        if (!value.startsWith("@{") || !value.endsWith("}")) {
-//            return value; // not an expression, return raw
-//        }
-//
-//        String varName = value.substring(2, value.length() - 1).trim();
-//
-//        try {
-//            // Attempt 1: Kotlin generates a getVariables() method for public properties
-//            try {
-//                java.lang.reflect.Method method = variableController.getClass().getMethod("getVariables");
-//                Map<String, Variable> vars = (Map<String, Variable>) method.invoke(variableController);
-//                if (vars != null && vars.containsKey(varName)) {
-//                    Variable v = vars.get(varName);
-//                    if (v != null && v.getValue() != null) return v.getValue().toString();
-//                }
-//            } catch (Exception ignored) {
-//                // Attempt 2: Direct field access if getter is hidden entirely
-//                for (java.lang.reflect.Field f : variableController.getClass().getDeclaredFields()) {
-//                    if (Map.class.isAssignableFrom(f.getType())) {
-//                        f.setAccessible(true);
-//                        Map<String, Variable> vars = (Map<String, Variable>) f.get(variableController);
-//                        if (vars != null && vars.containsKey(varName)) {
-//                            Variable v = vars.get(varName);
-//                            if (v != null && v.getValue() != null) return v.getValue().toString();
-//                        }
-//                        break; // found the map
-//                    }
-//                }
-//            }
-//        } catch (Exception e) {
-//            Log.w(TAG, "Could not resolve variable: " + varName, e);
-//        }
-//
-//        return ""; // variable not found, return empty
-//    }
-//}
-
-
-
-//package com.example.flare_android_client.divkit;
-//
-//import android.net.Uri;
-//import android.util.Log;
-//
-//import com.yandex.div.core.DivActionHandler;
-//import com.yandex.div.core.DivViewFacade;
-//import com.yandex.div.core.expression.variables.DivVariableController;
-//import com.yandex.div.data.Variable;
-//import com.yandex.div.json.expressions.ExpressionResolver;
-//import com.yandex.div2.DivAction;
-//
-//import org.json.JSONObject;
-//
-//import java.util.Iterator;
-//
-//public class FlareDivActionHandler extends DivActionHandler {
-//
-//    private static final String TAG = "FlareActionHandler";
-//    private static final String SCHEME_FLARE = "flare";
-//    private static final String HOST_ACTION = "action";
-//
-//    public interface FlareActionCallback {
-//        void onAction(String actionType, JSONObject payload);
-//    }
-//
-//    private final FlareActionCallback callback;
-//    private final DivVariableController variableController;
-//
-//    public FlareDivActionHandler(FlareActionCallback callback, DivVariableController variableController) {
-//        this.callback = callback;
-//        this.variableController = variableController;
-//    }
-//
-//    @Override
-//    public boolean handleAction(DivAction action, DivViewFacade view, ExpressionResolver resolver) {
-//        Uri url = action.url != null ? action.url.evaluate(resolver) : null;
-//
-//        if (url != null && SCHEME_FLARE.equals(url.getScheme()) && HOST_ACTION.equals(url.getHost())) {
-//            try {
-//                JSONObject rawPayload = action.payload != null ? action.payload : new JSONObject();
-//
-//                // 1. Resolve @{var_name} strings dynamically using DivKit's variables
-//                JSONObject resolvedPayload = resolvePayload(rawPayload);
-//
-//                String actionType = resolvedPayload.optString("flare_action");
-//
-//                if (actionType.isEmpty()) {
-//                    Log.w(TAG, "Action payload missing 'flare_action' key. Ignoring tap.");
-//                    return true;
-//                }
-//
-//                // 2. Pass the resolved payload to the Activity to send to Elixir
-//                callback.onAction(actionType, resolvedPayload);
-//                return true;
-//
-//            } catch (Exception e) {
-//                Log.e(TAG, "Failed to parse DivAction payload", e);
-//                return true;
-//            }
-//        }
-//
-//        return super.handleAction(action, view, resolver);
-//    }
-//
-//    private JSONObject resolvePayload(JSONObject raw) throws Exception {
-//        JSONObject resolved = new JSONObject();
-//        Iterator<String> keys = raw.keys();
-//        while (keys.hasNext()) {
-//            String key = keys.next();
-//            Object value = raw.get(key);
-//            if (value instanceof String) {
-//                resolved.put(key, resolveValue((String) value));
-//            } else {
-//                resolved.put(key, value);
-//            }
-//        }
-//        return resolved;
-//    }
-//
-//    private String resolveValue(String value) {
-//        if (!value.startsWith("@{") || !value.endsWith("}")) {
-//            return value;
-//        }
-//
-//        String varName = value.substring(2, value.length() - 1).trim();
-//
-//        try {
-//            Variable variable = variableController.get(varName);
-//            if (variable != null) {
-//                return variable.getValue().toString();
-//            }
-//        } catch (Exception e) {
-//            Log.w(TAG, "Could not resolve variable: " + varName);
-//        }
-//
-//        return "";
-//    }
-//}

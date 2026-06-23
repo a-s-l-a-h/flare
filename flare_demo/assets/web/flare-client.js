@@ -367,9 +367,14 @@ const params = { token: this.token };
       const url = new URL(action.url);
 
       const actionUrl = action.url || "";
-if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
-  const payload   = action.payload || {};
-  const eventType = payload.flare_action;
+              if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
+              // Manually resolve @{variables} in the payload to match Android's
+              // behavior — see SPEC_EXPRESSION_RESOLUTION.md. DivKit's native
+              // resolver only handles layout-bound properties, not arbitrary
+              // strings sitting inside an opaque action.payload object.
+              const rawPayload = action.payload || {};
+              const payload    = this._resolvePayload(rawPayload);
+              const eventType  = payload.flare_action;
 
         // Check if this is a local native action (camera, QR, GPS etc)
         // These are handled by the native bridge on Android/iOS
@@ -532,18 +537,56 @@ if (actionUrl === "flare://action" || actionUrl.startsWith("flare://action")) {
   }
 
   _showError(message) {
-    this.rootEl.innerHTML = `
-      <div style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 200px;
-        color: #e74c3c;
-        font-family: sans-serif;
-        font-size: 14px;
-      ">${message}</div>
-    `;
-  }
+                this.rootEl.innerHTML = `
+                  <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 200px;
+                    color: #e74c3c;
+                    font-family: sans-serif;
+                    font-size: 14px;
+                  ">${message}</div>
+                `;
+              }
+
+              // ---------------------------------------------------------------------------
+              // _resolvePayload — Cross-platform contract: see SPEC_EXPRESSION_RESOLUTION.md
+              //
+              // Resolves @{variable_name} strings found in the TOP-LEVEL keys of an
+              // action.payload object against the shared global variable controller.
+              // Matches the Android reflection-based resolver exactly:
+              //   - Only top-level string values are candidates (Section 1)
+              //   - Non-string values (boolean/number) pass through unchanged (Section 5)
+              //   - Missing or null variable values resolve to "" + warning (Section 4)
+              //   - Nested objects/arrays are NOT recursed into (Section 1) — flat only
+              // ---------------------------------------------------------------------------
+              _resolvePayload(rawPayload) {
+                const resolved = {};
+                for (const [key, value] of Object.entries(rawPayload)) {
+                  if (typeof value === "string" && value.startsWith("@{") && value.endsWith("}")) {
+                    const varName = value.substring(2, value.length - 1).trim();
+                    const variable = this.globalController.getVariable(varName);
+
+                    // Treat "variable doesn't exist" AND "variable exists but value is
+                    // null/undefined" identically — both degrade to "". This matches
+                    // Android's tryKotlinAccessor/tryReflectedMap, which only return a
+                    // non-null String when v.getValue() is itself non-null.
+                    const resolvedValue = variable ? variable.getValue() : null;
+
+                    if (resolvedValue !== null && resolvedValue !== undefined) {
+                      resolved[key] = resolvedValue;
+                    } else {
+                      console.warn(`[Flare] Could not resolve @{${varName}} — defaulting to ""`);
+                      resolved[key] = "";
+                    }
+                  } else {
+                    // Pass through booleans, numbers, and plain (non-expression) strings
+                    resolved[key] = value;
+                  }
+                }
+                return resolved;
+              }
 
   // ---------------------------------------------------------------------------
 // _handleAuthFailure — token missing, expired, or rejected by server.
