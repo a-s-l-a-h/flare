@@ -21,9 +21,24 @@ defmodule Flare.Channel do
   application's responsibility. Both real users and guests must obtain
   a signed token from the host app (e.g. POST /auth/guest or POST /auth/login)
   BEFORE opening the WebSocket. If user_id is nil, the join is rejected.
+
+  ## Authorization
+
+  Screen-level access control runs after authentication, inside do_join.
+  Priority order:
+    1. Screen module defines authorize/2        → use it, skip router roles
+    2. Router declares roles: [:admin, ...]     → enforce via role_resolver
+    3. Neither                                  → open to all authenticated users
+
+  All checks run server-side before mount, before state restore, before
+  any layout bytes are sent. There is no client-side bypass.
   """
 
   use Phoenix.Channel
+
+  # ---------------------------------------------------------------------------
+  # join/3 — entry point for every WebSocket channel join
+  # ---------------------------------------------------------------------------
 
   def join("flare:" <> screen_name, params, channel_socket) do
     user_id = channel_socket.assigns[:user_id]
@@ -31,14 +46,9 @@ defmodule Flare.Channel do
     Flare.Logger.info(__MODULE__, "Joining screen: #{screen_name} | user: #{inspect(user_id)}")
 
     # ── Hard gate ─────────────────────────────────────────────────────────────
-    # user_id MUST be set by the host app's UserSocket.connect/3 before we
-    # get here. Flare is a library — it never issues tokens or creates
-    # identities. Both guests and real users must go through the host app's
-    # auth endpoints first.
-    #
-    # If user_id is nil here, the host app's UserSocket allowed an
-    # unauthenticated connection through — that is a misconfiguration.
-    # Reject immediately with a clear error so the developer knows what to fix.
+    # user_id MUST be set by the host app's UserSocket.connect/3.
+    # Flare never issues tokens or creates identities.
+    # If user_id is nil, the host app misconfigured UserSocket — reject loudly.
     # ─────────────────────────────────────────────────────────────────────────
     if is_nil(user_id) do
       Flare.Logger.error(
@@ -53,26 +63,55 @@ defmodule Flare.Channel do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # do_join — runs after user_id is confirmed non-nil
+  # ---------------------------------------------------------------------------
+
   defp do_join(screen_name, params, channel_socket, user_id) do
-    # ── Start UserState for this user ─────────────────────────────────────────
-    # ensure_started is idempotent — safe to call even if already running.
-    # Must happen before get_all/1 below.
+    # Start UserState for this user — idempotent, safe to call if already running.
+    # Must happen before any state read below.
     Flare.UserState.ensure_started(user_id)
 
-    # Subscribe to PubSub topics for this user and screen
+    # Subscribe to PubSub topics for this user and screen.
     Phoenix.PubSub.subscribe(Flare.PubSub, "user:#{user_id}")
     Phoenix.PubSub.subscribe(Flare.PubSub, "screen:#{user_id}:#{screen_name}")
-
-    # Broadcasts to all users on this screen (no user_id needed for these)
     Phoenix.PubSub.subscribe(Flare.PubSub, "broadcast:#{screen_name}")
 
     router = Application.get_env(:flare, :router) ||
       raise "Missing config: config :flare, router: MyApp.FlareRouter"
+
     screen_module = router.screen_for!(screen_name)
 
-    # Restore saved state for this user.
-    # Guests and real users are treated identically here —
-    # user_id is user_id regardless of how it was obtained.
+    # ── Authorization gate ─────────────────────────────────────────────────────
+    # Runs BEFORE mount, BEFORE state restore, BEFORE any layout is sent.
+    # Rejected users receive only {"reason":"unauthorized"} — nothing else.
+    #
+    # Priority:
+    #   1. Screen module has custom authorize/2 → call it, ignore router roles
+    #   2. Router declares roles: [...]         → check via role_resolver config
+    #   3. No restriction                       → :ok, open to all
+    # ─────────────────────────────────────────────────────────────────────────
+    case check_authorization(screen_module, screen_name, user_id, params, router) do
+      :ok ->
+        do_mount(screen_name, params, channel_socket, user_id, screen_module)
+
+      {:error, reason} ->
+        Flare.Logger.error(
+          __MODULE__,
+          "Unauthorized join rejected | screen: #{screen_name} | user: #{user_id} | reason: #{inspect(reason)}"
+        )
+        {:error, %{"reason" => "unauthorized", "detail" => inspect(reason)}}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # do_mount — runs only after authorization passes
+  # ---------------------------------------------------------------------------
+
+  defp do_mount(screen_name, params, channel_socket, user_id, screen_module) do
+    # Restore this user's own runtime state from their UserState GenServer.
+    # This is completely separate from the ETS layout cache.
+    # User state is never shared between users, never stored in ETS.
     saved_assigns = Flare.UserState.get_all(user_id)
     Flare.Logger.info(__MODULE__, "Restored assigns for #{user_id}: #{inspect(Map.keys(saved_assigns))}")
 
@@ -97,6 +136,94 @@ defmodule Flare.Channel do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Authorization helpers
+  # ---------------------------------------------------------------------------
+
+  # Checks authorization using priority order:
+  # 1. Screen module has custom authorize/2 → use it exclusively
+  # 2. Router has roles: [...] for this screen → check via resolver
+  # 3. No restriction → :ok
+  defp check_authorization(screen_module, screen_name, user_id, params, router) do
+    cond do
+      custom_authorize?(screen_module) ->
+        # Screen wrote its own authorize/2 — use it, skip router roles entirely.
+        Flare.Logger.debug(__MODULE__, "Using custom authorize/2 for #{screen_name}")
+        screen_module.authorize(user_id, params)
+
+      has_router_roles?(router, screen_name) ->
+        # Router declared roles: [...] — check via the configured role_resolver.
+        router_roles = get_router_roles(router, screen_name)
+        Flare.Logger.debug(__MODULE__, "Checking router roles #{inspect(router_roles)} for #{screen_name}")
+        check_roles(user_id, router_roles)
+
+      true ->
+        # No restriction anywhere — open to all authenticated users.
+        :ok
+    end
+  end
+
+  # Returns true ONLY if the screen module explicitly defined authorize/2.
+  # The __has_custom_authorize__/0 sentinel is set at compile time by
+  # Flare.Screen's @before_compile hook — it returns false for the default
+  # no-op and true only when the developer wrote their own authorize/2.
+  defp custom_authorize?(screen_module) do
+    function_exported?(screen_module, :__has_custom_authorize__, 0) and
+      screen_module.__has_custom_authorize__()
+  end
+
+  # Returns true if the router registered roles: [...] for this screen.
+  # Separated from get_router_roles so cond conditions stay simple booleans.
+  defp has_router_roles?(router, screen_name) do
+    get_router_roles(router, screen_name) != []
+  end
+
+  # Returns the roles: list for a screen, or [] if none declared.
+  defp get_router_roles(router, screen_name) do
+    Enum.find_value(router.registered_screens(), [], fn
+      {^screen_name, _module, opts} -> Keyword.get(opts, :roles, [])
+      _                             -> nil
+    end)
+  end
+
+  # Calls the configured role_resolver to get the user's role,
+  # then checks if it's in the allowed list.
+  #
+  # Configure in config/config.exs:
+  #   config :flare, role_resolver: {MyApp.Accounts, :get_role, 1}
+  #
+  # The resolver receives user_id and must return an atom or nil.
+  defp check_roles(user_id, allowed_roles) do
+    case Application.get_env(:flare, :role_resolver) do
+      {mod, fun, _arity} ->
+        user_role = apply(mod, fun, [user_id])
+
+        if user_role in allowed_roles do
+          :ok
+        else
+          Flare.Logger.info(
+            __MODULE__,
+            "Role check failed | user: #{user_id} | role: #{inspect(user_role)} | allowed: #{inspect(allowed_roles)}"
+          )
+          {:error, :unauthorized}
+        end
+
+      nil ->
+        # roles: declared in router but no resolver configured.
+        # Fail closed — deny access and tell the developer what to fix.
+        Flare.Logger.error(
+          __MODULE__,
+          "Router has roles: restrictions but no role_resolver configured. " <>
+          "Add to config/config.exs: config :flare, role_resolver: {MyApp.Accounts, :get_role, 1}"
+        )
+        {:error, :role_resolver_not_configured}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # handle_in — incoming client events
+  # ---------------------------------------------------------------------------
+
   def handle_in("event", %{"screen" => _screen, "type" => type, "payload" => payload}, channel_socket) do
     flare_socket = channel_socket.assigns.flare_socket
     old_assigns  = flare_socket.assigns
@@ -111,12 +238,9 @@ defmodule Flare.Channel do
         channel_socket = push_diff_and_commands(channel_socket, diff, commands)
 
         # :ok reply tells the client push().receive("ok") to fire.
-        # This is the WebSocket equivalent of HTTP 200.
         {:reply, :ok, assign(channel_socket, :flare_socket, new_flare_socket)}
 
       {:error, reason} ->
-        # Developer's handle_event returned an error.
-        # Client push().receive("error") fires with the reason.
         Flare.Logger.error(__MODULE__, "handle_event returned error for #{type}", reason)
         {:reply, {:error, %{"reason" => inspect(reason)}}, channel_socket}
     end
@@ -133,9 +257,11 @@ defmodule Flare.Channel do
     {:noreply, channel_socket}
   end
 
+  # ---------------------------------------------------------------------------
+  # handle_info — PubSub messages and internal messages
+  # ---------------------------------------------------------------------------
+
   # Push INIT after join returns (client is now subscribed).
-  # No extra commands here — token was issued by the host app over HTTP
-  # before the WebSocket opened. No store_token round trip needed.
   def handle_info({:push_init, envelope}, socket) do
     push(socket, "init", envelope)
     {:noreply, socket}
@@ -231,13 +357,17 @@ defmodule Flare.Channel do
     {:noreply, assign(channel_socket, :flare_socket, new_flare_socket)}
   end
 
+  # ---------------------------------------------------------------------------
+  # terminate — save state on every disconnect
+  # ---------------------------------------------------------------------------
+
   def terminate(reason, channel_socket) do
     Flare.Logger.info(__MODULE__, "Channel terminating: #{inspect(reason)}")
 
-    # Save full state on EVERY disconnect, including peer_closed (OS killed socket).
-    # push_diff_and_commands only saves diffs when events fire — if the connection
-    # drops between events, the last in-memory state is lost without this save.
-    # This is the fix for flare_clicks resetting to 0 after Android backgrounds the app.
+    # Save full state on EVERY disconnect, including peer_closed.
+    # push_diff_and_commands only saves diffs when events fire — if the
+    # connection drops between events, the last in-memory state is lost
+    # without this save.
     case channel_socket.assigns do
       %{flare_socket: %{user_id: user_id, assigns: assigns}} when not is_nil(user_id) ->
         Flare.Logger.info(__MODULE__, "Saving state on terminate for #{user_id}: #{inspect(Map.keys(assigns))}")
@@ -249,6 +379,10 @@ defmodule Flare.Channel do
     :ok
   end
 
+  # ---------------------------------------------------------------------------
+  # push_diff_and_commands — private
+  # ---------------------------------------------------------------------------
+
   defp push_diff_and_commands(channel_socket, diff, commands) do
     flare_socket = channel_socket.assigns.flare_socket
     screen_name  = flare_socket.screen_name
@@ -257,12 +391,11 @@ defmodule Flare.Channel do
     {global_diff, screen_diff} = Flare.Diff.split(diff, global_keys)
 
     # Global keys are broadcast via UserState → PubSub → all open screens.
-    # But we must also update this channel's own flare_socket.assigns so the
-    # next diff cycle doesn't see these global values as "changed" again.
+    # We also merge them back into this socket's assigns so the next diff
+    # cycle doesn't see these global values as "changed" again.
     updated_channel_socket =
       unless Flare.Diff.empty?(global_diff) do
         Flare.UserState.update(flare_socket.user_id, global_diff)
-        # Merge global changes back into this socket's assigns to keep in sync
         updated_assigns      = Map.merge(flare_socket.assigns, global_diff)
         updated_flare_socket = %{flare_socket | assigns: updated_assigns}
         assign(channel_socket, :flare_socket, updated_flare_socket)

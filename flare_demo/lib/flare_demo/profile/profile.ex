@@ -2,6 +2,7 @@ defmodule FlareDemo.Profile do
   use Flare.Screen
 
   screen_dir __DIR__
+  # use_cache true
 
   @impl true
   def mount(_params, socket) do
