@@ -1,0 +1,6 @@
+{
+  "variables": [
+    { "name": "flare_total_users",  "type": "integer", "value": 0 },
+    { "name": "flare_total_notes",  "type": "integer", "value": 0 }
+  ]
+}

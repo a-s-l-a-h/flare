@@ -1,5 +1,3 @@
-# Location: flare_demo/lib/flare_demo/application.ex
-
 defmodule FlareDemo.Application do
   @moduledoc false
   use Application
@@ -7,15 +5,16 @@ defmodule FlareDemo.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Phoenix needs this for its own internal channel mechanics.
-      # Flare.PubSub (started by Flare.Application) is separate —
-      # used for Flare's state broadcasting between screens.
+      FlareDemo.Repo, # <-- UPDATED
       {Phoenix.PubSub, name: FlareDemo.PubSub},
       FlareDemo.Endpoint
     ]
-
     opts = [strategy: :one_for_one, name: FlareDemo.Supervisor]
-    Supervisor.start_link(children, opts)
+    {:ok, pid} = Supervisor.start_link(children, opts)
+
+    FlareDemo.Bootstrapper.setup() # <-- UPDATED
+
+    {:ok, pid}
   end
 
   @impl true

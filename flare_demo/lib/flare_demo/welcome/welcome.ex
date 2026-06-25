@@ -1,40 +1,35 @@
 defmodule FlareDemo.Welcome do
   use Flare.Screen
+  alias FlareDemo.Users.User
 
   screen_dir __DIR__
-  # use_cache false
 
   @impl true
   def mount(_params, socket) do
+    user = User.get(socket.user_id)
+    is_admin = User.get_role(socket.user_id) == "admin"
+
+    # ⬇️ THE FIX: Fallback to "Guest" if first_name is nil
+    first_name = (user && user.first_name) || "Guest"
+
     {:ok, assign(socket,
-      flare_count:      Map.get(socket.assigns, :flare_count, 0),
-      flare_first_name: Map.get(socket.assigns, :flare_first_name, ""),
-      flare_last_name:  Map.get(socket.assigns, :flare_last_name, "")
+      flare_first_name: first_name,
+      flare_is_admin: is_admin
     )}
   end
 
   @impl true
-  def handle_event("increment", _payload, socket) do
-    current = Map.get(socket.assigns, :flare_count, 0)
-    socket
-    |> assign(:flare_count, current + 1)
-    |> haptic(:success)
-    |> then(&{:noreply, &1})
+  def handle_event("go_to_notes", _payload, socket) do
+    {:noreply, navigate(socket, "notes")}
   end
 
   @impl true
-  def handle_event("decrement", _payload, socket) do
-    current = Map.get(socket.assigns, :flare_count, 0)
-    socket
-    |> assign(:flare_count, max(current - 1, 0))
-    |> haptic(:light)
-    |> then(&{:noreply, &1})
+  def handle_event("go_to_admin", _payload, socket) do
+    {:noreply, navigate(socket, "admin")}
   end
 
   @impl true
   def handle_event("go_to_profile", _payload, socket) do
-    socket
-    |> navigate("profile")
-    |> then(&{:noreply, &1})
+    {:noreply, navigate(socket, "profile")}
   end
 end

@@ -1,0 +1,8 @@
+{
+  "variables": [
+    { "name": "flare_notes_text",               "type": "string", "value": "" },
+    { "name": "local_new_note",                 "type": "string", "value": "" },
+    { "name": "local_flare_pending_add_note",   "type": "boolean", "value": false },
+    { "name": "local_flare_pending_go_back",    "type": "boolean", "value": false }
+  ]
+}

@@ -1,14 +1,22 @@
 defmodule FlareDemo.Profile do
   use Flare.Screen
+  alias FlareDemo.Users.User
 
   screen_dir __DIR__
-  # use_cache true
 
   @impl true
   def mount(_params, socket) do
+    user = User.get(socket.user_id)
+
+    # ⬇️ THE FIX: Fallback to "" if user is nil OR if first_name is nil!
+    first = (user && user.first_name) || ""
+    last = (user && user.last_name) || ""
+
     {:ok, assign(socket,
-      flare_first_name: Map.get(socket.assigns, :flare_first_name, ""),
-      flare_last_name:  Map.get(socket.assigns, :flare_last_name, "")
+      flare_first_name: first,
+      flare_last_name:  last,
+      local_first_name: first,
+      local_last_name:  last
     )}
   end
 
@@ -16,6 +24,12 @@ defmodule FlareDemo.Profile do
   def handle_event("save_profile", payload, socket) do
     first = payload |> Map.get("first_name", "") |> String.trim()
     last  = payload |> Map.get("last_name",  "") |> String.trim()
+
+    # Update the database
+    case User.update_profile(socket.user_id, first, last) do
+      {:ok, _user} -> :ok
+      _ -> :error
+    end
 
     socket
     |> assign(:flare_first_name, first)

@@ -1,0 +1,63 @@
+{
+  "card": {
+    "log_id": "admin_screen",
+    "states": [
+      {
+        "state_id": 0,
+        "div": {
+          "type": "container",
+          "orientation": "vertical",
+          "height": { "type": "match_parent" },
+          "background": [{ "type": "solid", "color": "#1a1a2e" }],
+          "paddings": { "top": 80, "bottom": 32, "left": 24, "right": 24 },
+          "items": [
+            {
+              "type": "text",
+              "text": "Admin Dashboard",
+              "font_size": 28,
+              "font_weight": "bold",
+              "text_color": "#ffffff",
+              "margins": { "bottom": 40 }
+            },
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "background": [{ "type": "solid", "color": "#2c2c44" }],
+              "border": { "corner_radius": 16 },
+              "paddings": { "top": 24, "bottom": 24, "left": 24, "right": 24 },
+              "margins": { "bottom": 16 },
+              "items": [
+                { "type": "text", "text": "TOTAL REGISTERED USERS", "font_size": 12, "text_color": "#aaaaaa", "margins": { "bottom": 8 } },
+                { "type": "text", "text": "@{flare_total_users}", "font_size": 48, "font_weight": "bold", "text_color": "#ffffff" }
+              ]
+            },
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "background": [{ "type": "solid", "color": "#2c2c44" }],
+              "border": { "corner_radius": 16 },
+              "paddings": { "top": 24, "bottom": 24, "left": 24, "right": 24 },
+              "margins": { "bottom": 40 },
+              "items": [
+                { "type": "text", "text": "TOTAL NOTES CREATED", "font_size": 12, "text_color": "#aaaaaa", "margins": { "bottom": 8 } },
+                { "type": "text", "text": "@{flare_total_notes}", "font_size": 48, "font_weight": "bold", "text_color": "#e74c3c" }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "← Exit Dashboard",
+              "font_size": 16,
+              "text_alignment_horizontal": "center",
+              "text_color": "#aaaaaa",
+              "action": {
+                "log_id": "btn_back",
+                "url": "flare://action",
+                "payload": { "flare_action": "go_back" }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

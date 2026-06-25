@@ -1,5 +1,3 @@
-# Location: flare_demo/mix.exs
-
 defmodule FlareDemo.MixProject do
   use Mix.Project
 
@@ -32,7 +30,12 @@ defmodule FlareDemo.MixProject do
       {:bandit,   "~> 1.5"},
       {:jason,    "~> 1.4"},
       {:esbuild,  "~> 0.10", runtime: Mix.env() == :dev},
-      {:flare,    path: "../flare"}
+      {:flare,    path: "../flare"},
+      {:ecto_sql, "~> 3.10"},
+      {:ecto_sqlite3, "~> 0.13"},
+
+      # REPLACE bcrypt_elixir with pbkdf2_elixir
+      {:pbkdf2_elixir, "~> 2.0"}
     ]
   end
 

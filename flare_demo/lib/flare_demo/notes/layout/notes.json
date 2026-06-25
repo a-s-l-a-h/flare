@@ -1,0 +1,85 @@
+{
+  "card": {
+    "log_id": "notes_screen",
+    "states": [
+      {
+        "state_id": 0,
+        "div": {
+          "type": "container",
+          "orientation": "vertical",
+          "height": { "type": "match_parent" },
+          "background": [{ "type": "solid", "color": "#f0f2f8" }],
+          "paddings": { "top": 64, "bottom": 32, "left": 20, "right": 20 },
+          "items": [
+            {
+              "type": "text",
+              "text": "My Notes",
+              "font_size": 28,
+              "font_weight": "bold",
+              "text_color": "#1a1a2e",
+              "margins": { "bottom": 24 }
+            },
+            {
+              "type": "input",
+              "text_variable": "local_new_note",
+              "hint_text": "Write a note...",
+              "font_size": 16,
+              "background": [{ "type": "solid", "color": "#ffffff" }],
+              "border": { "corner_radius": 12 },
+              "paddings": { "top": 16, "bottom": 16, "left": 16, "right": 16 },
+              "margins": { "bottom": 16 }
+            },
+            {
+              "type": "text",
+              "text": "@{local_flare_pending_add_note ? 'Saving...' : 'Add Note'}",
+              "font_size": 16,
+              "font_weight": "bold",
+              "text_alignment_horizontal": "center",
+              "text_color": "#ffffff",
+              "background": [{ "type": "solid", "color": "#3498db" }],
+              "border": { "corner_radius": 12 },
+              "paddings": { "top": 16, "bottom": 16 },
+              "margins": { "bottom": 32 },
+              "alpha": "@{local_flare_pending_add_note ? 0.5 : 1.0}",
+              "action": {
+                "log_id": "btn_add",
+                "url": "flare://action",
+                "payload": { "flare_action": "add_note", "content": "@{local_new_note}" }
+              }
+            },
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "background": [{ "type": "solid", "color": "#ffffff" }],
+              "border": { "corner_radius": 16 },
+              "paddings": { "top": 24, "bottom": 24, "left": 20, "right": 20 },
+              "margins": { "bottom": 24 },
+              "items": [
+                {
+                  "type": "text",
+                  "text": "@{flare_notes_text}",
+                  "font_size": 16,
+                  "line_height": 24,
+                  "text_color": "#444444"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "← Back to Home",
+              "font_size": 15,
+              "text_alignment_horizontal": "center",
+              "text_color": "#888888",
+              "paddings": { "top": 16, "bottom": 16 },
+              "action": {
+                "log_id": "btn_back",
+                "url": "flare://action",
+                "payload": { "flare_action": "go_back" }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

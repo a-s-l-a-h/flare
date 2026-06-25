@@ -17,184 +17,132 @@
 </style>
 <body style="margin:0;padding:0;background:#f0f2f8;font-family:sans-serif;">
 
-  <!-- Login page — shown before WebSocket opens, hidden after auth -->
   <div id="flare-login" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;">
 
     <div style="background:#fff;border-radius:24px;padding:40px 32px;width:100%;max-width:380px;box-shadow:0 4px 32px rgba(0,0,0,0.08);">
-
       <div style="font-size:26px;font-weight:bold;color:#1a1a2e;text-align:center;margin-bottom:8px;">🔥 Flare Demo</div>
-      <div style="font-size:14px;color:#888;text-align:center;margin-bottom:32px;">Sign in to continue</div>
+      <div id="auth-subtitle" style="font-size:14px;color:#888;text-align:center;margin-bottom:32px;">Sign in to continue</div>
 
-      <!-- Error box — hidden until needed -->
       <div id="login-error" style="display:none;background:#fdecea;color:#c0392b;border-radius:10px;padding:12px 16px;font-size:14px;margin-bottom:16px;text-align:center;"></div>
 
-      <!-- Email / password -->
-      <input id="login-email"
-             type="email"
-             placeholder="Email"
-             autocomplete="email"
-             style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;color:#1a1a2e;background:#f7f7f7;margin-bottom:12px;outline:none;box-sizing:border-box;" />
+      <!-- Registration Fields (Hidden by default) -->
+      <div id="register-fields" style="display:none;">
+        <input id="reg-first" type="text" placeholder="First Name" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;margin-bottom:12px;box-sizing:border-box;" />
+        <input id="reg-last" type="text" placeholder="Last Name" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;margin-bottom:12px;box-sizing:border-box;" />
+        <input id="reg-confirm" type="password" placeholder="Confirm Password" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;margin-bottom:12px;box-sizing:border-box;" />
+      </div>
 
-      <input id="login-password"
-             type="password"
-             placeholder="Password"
-             autocomplete="current-password"
-             style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;color:#1a1a2e;background:#f7f7f7;margin-bottom:12px;outline:none;box-sizing:border-box;" />
+      <!-- Shared Fields -->
+      <input id="login-email" type="email" placeholder="Email" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;background:#f7f7f7;margin-bottom:12px;box-sizing:border-box;" />
+      <input id="login-password" type="password" placeholder="Password" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;background:#f7f7f7;margin-bottom:12px;box-sizing:border-box;" />
 
-      <button id="btn-login"
-              style="display:block;width:100%;padding:16px;border:none;border-radius:14px;font-size:16px;font-weight:bold;cursor:pointer;margin-bottom:10px;background:#8e44ad;color:#fff;">
+      <button id="btn-submit" style="display:block;width:100%;padding:16px;border:none;border-radius:14px;font-size:16px;font-weight:bold;cursor:pointer;margin-bottom:16px;background:#8e44ad;color:#fff;">
         Sign In
       </button>
 
-      <!-- Divider -->
-      <div style="display:flex;align-items:center;margin:16px 0;color:#ccc;font-size:13px;gap:8px;">
-        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
-        <span>or</span>
-        <div style="flex:1;height:1px;background:#e0e0e0;"></div>
+      <div style="text-align:center;font-size:14px;color:#888;">
+        <span id="toggle-text">Need an account?</span> 
+        <a id="btn-toggle-mode" href="#" style="color:#8e44ad;font-weight:bold;text-decoration:none;">Sign Up</a>
       </div>
 
-      <!-- DEVELOPER: If you need OAuth (Google, Keycloak, Apple), add your buttons here -->
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;margin:24px 0;color:#ccc;font-size:13px;gap:8px;">
+        <div style="flex:1;height:1px;background:#e0e0e0;"></div><span>or</span><div style="flex:1;height:1px;background:#e0e0e0;"></div>
+      </div>
 
-      <!-- Guest -->
-      <button id="btn-guest"
-              style="display:block;width:100%;padding:10px;border:none;border-radius:14px;font-size:14px;cursor:pointer;background:transparent;color:#888;">
+      <button id="btn-guest" style="display:block;width:100%;padding:10px;border:none;border-radius:14px;font-size:14px;cursor:pointer;background:transparent;color:#888;">
         Continue as Guest →
       </button>
 
     </div>
   </div>
 
-  <!-- Flare app root — shown after auth, exactly as before -->
   <div id="flare-root" style="width:100%;min-height:100vh;"></div>
 
   <script>
-    window.__flare__ = {
-      wsUrl:        "/socket",
-      token:        null,
-      entryScreen:  "welcome"
-    };
+    window.__flare__ = { wsUrl: "/socket", token: null, entryScreen: "welcome" };
   </script>
 
   <script>
     (function () {
+      let isRegisterMode = false;
+      
       const LOGIN_DIV = document.getElementById("flare-login");
       const ROOT_DIV  = document.getElementById("flare-root");
       const ERROR_DIV = document.getElementById("login-error");
 
-      // ── Show/hide helpers ────────────────────────────────────────────────
-      function showLogin() {
-        LOGIN_DIV.style.display = "flex";
-        ROOT_DIV.style.display  = "none";
-      }
-      function showApp() {
-        LOGIN_DIV.style.display = "none";
-        ROOT_DIV.style.display  = "block";
-      }
-      function showError(msg) {
-        ERROR_DIV.textContent   = msg;
-        ERROR_DIV.style.display = "block";
-      }
-      function clearError() {
-        ERROR_DIV.style.display = "none";
-        ERROR_DIV.textContent   = "";
-      }
-      function setLoading(btn, loading) {
-        btn.disabled = loading;
-        if (loading) btn.dataset.original = btn.textContent;
-        btn.textContent = loading ? "Please wait…" : btn.dataset.original;
-      }
+      function showApp() { LOGIN_DIV.style.display = "none"; ROOT_DIV.style.display = "block"; }
+      function showError(msg) { ERROR_DIV.textContent = msg; ERROR_DIV.style.display = "block"; }
+      function clearError() { ERROR_DIV.style.display = "none"; ERROR_DIV.textContent = ""; }
 
-      // ── Token helpers ────────────────────────────────────────────────────
-      function saveToken(token) {
-        localStorage.setItem("flare_token", token);
-        window.__flare__.token = token;
-      }
-      function loadToken() {
-        return localStorage.getItem("flare_token");
-      }
+      // ── Toggle Login / Register ──────────────────────────────────────────
+      document.getElementById("btn-toggle-mode").addEventListener("click", (e) => {
+        e.preventDefault();
+        isRegisterMode = !isRegisterMode;
+        clearError();
+        
+        document.getElementById("register-fields").style.display = isRegisterMode ? "block" : "none";
+        document.getElementById("btn-submit").textContent = isRegisterMode ? "Create Account" : "Sign In";
+        document.getElementById("auth-subtitle").textContent = isRegisterMode ? "Create a new account" : "Sign in to continue";
+        document.getElementById("toggle-text").textContent = isRegisterMode ? "Already have an account?" : "Need an account?";
+        document.getElementById("btn-toggle-mode").textContent = isRegisterMode ? "Sign In" : "Sign Up";
+      });
 
-      // ── Start Flare ──────────────────────────────────────────────────────
-      function startFlare(token) {
-        if (token) saveToken(token);
-        showApp();
-        if (typeof window.__flare_start__ === "function") {
-          window.__flare_start__();
-        } else {
-          window.__flare__.autoStart = true;
-        }
-      }
-
-      // ── HTTP helper ──────────────────────────────────────────────────────
       async function postJson(url, body) {
-        const res  = await fetch(url, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify(body)
-        });
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Request failed");
         return json;
       }
 
-      // ── Boot decision ────────────────────────────────────────────────────
-      const urlParams  = new URLSearchParams(window.location.search);
-      const oauthToken = urlParams.get("token");
-
-      if (oauthToken) {
-        window.history.replaceState({}, "", window.location.pathname);
-        startFlare(oauthToken);
-      } else {
-        const stored = loadToken();
-        if (stored) {
-          startFlare(stored);
-        } else {
-          showLogin();
-        }
+      function startFlare(token) {
+        if (token) { localStorage.setItem("flare_token", token); window.__flare__.token = token; }
+        showApp();
+        if (typeof window.__flare_start__ === "function") window.__flare_start__();
+        else window.__flare__.autoStart = true;
       }
 
-      // ── Button: Sign In ──────────────────────────────────────────────────
-      document.getElementById("btn-login").addEventListener("click", async () => {
+      if (localStorage.getItem("flare_token")) {
+        startFlare(localStorage.getItem("flare_token"));
+      } else {
+        LOGIN_DIV.style.display = "flex";
+      }
+
+      // ── Submit Button ────────────────────────────────────────────────────
+      document.getElementById("btn-submit").addEventListener("click", async () => {
         clearError();
-        const btn      = document.getElementById("btn-login");
-        const email    = document.getElementById("login-email").value.trim();
+        const email = document.getElementById("login-email").value.trim();
         const password = document.getElementById("login-password").value;
-        if (!email || !password) { showError("Please enter email and password."); return; }
-        setLoading(btn, true);
-        try {
-          const { token } = await postJson("/auth/login", { email, password });
-          startFlare(token);
-        } catch (e) {
-          showError(e.message || "Login failed. Please try again.");
-        } finally {
-          setLoading(btn, false);
+        const btn = document.getElementById("btn-submit");
+
+        if (!email || !password) return showError("Email and password are required.");
+
+        if (isRegisterMode) {
+          const first = document.getElementById("reg-first").value.trim();
+          const last = document.getElementById("reg-last").value.trim();
+          const confirm = document.getElementById("reg-confirm").value;
+
+          // Client-side password validation!
+          if (password !== confirm) return showError("Passwords do not match!");
+          if (!first) return showError("First name is required!");
+
+          btn.disabled = true; btn.textContent = "Creating...";
+          try {
+            const { token } = await postJson("/auth/register", { email, password, first_name: first, last_name: last });
+            startFlare(token);
+          } catch (e) { showError(e.message); btn.disabled = false; btn.textContent = "Create Account"; }
+        } else {
+          btn.disabled = true; btn.textContent = "Signing In...";
+          try {
+            const { token } = await postJson("/auth/login", { email, password });
+            startFlare(token);
+          } catch (e) { showError(e.message); btn.disabled = false; btn.textContent = "Sign In"; }
         }
       });
 
-      // ── DEVELOPER: Handle OAuth button clicks here if added ──────────────
-      // (e.g. Google, Keycloak redirect scripts)
-
-      // ── Button: Guest ────────────────────────────────────────────────────
       document.getElementById("btn-guest").addEventListener("click", async () => {
-        clearError();
-        const btn = document.getElementById("btn-guest");
-        setLoading(btn, true);
-        try {
-          const { token } = await postJson("/auth/guest", {});
-          startFlare(token);
-        } catch (e) {
-          startFlare(null);
-        } finally {
-          setLoading(btn, false);
-        }
+        try { const { token } = await postJson("/auth/guest", {}); startFlare(token); } catch(e) {}
       });
-
-      // ── Enter key submits login ──────────────────────────────────────────
-      ["login-email", "login-password"].forEach(function(id) {
-        document.getElementById(id).addEventListener("keydown", function(e) {
-          if (e.key === "Enter") document.getElementById("btn-login").click();
-        });
-      });
-
     })();
   </script>
 </body>
