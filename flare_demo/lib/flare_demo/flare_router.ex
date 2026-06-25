@@ -6,5 +6,5 @@ defmodule FlareDemo.FlareRouter do
   screen "notes",   FlareDemo.NotesScreen
 
   # Only admins can enter this screen!
-  screen "admin",   FlareDemo.AdminScreen, roles: ["admin"]
+  screen "dashboard", FlareDemo.DashboardScreen, roles: ["admin"]
 end

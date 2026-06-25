@@ -1,9 +1,14 @@
 {
   "variables": [
-    { "name": "flare_first_name",                  "type": "string",  "value": "" },
-    { "name": "flare_is_admin",                    "type": "boolean", "value": false },
-    { "name": "local_flare_pending_go_to_notes",   "type": "boolean", "value": false },
-    { "name": "local_flare_pending_go_to_admin",   "type": "boolean", "value": false },
-    { "name": "local_flare_pending_go_to_profile", "type": "boolean", "value": false }
+    { "name": "flare_first_name", "type": "string", "value": "" },
+    { "name": "flare_last_name", "type": "string", "value": "" },
+    { "name": "flare_is_admin", "type": "boolean", "value": false },
+    { "name": "flare_dark_mode", "type": "boolean", "value": false },
+
+    { "name": "local_flare_pending_go_to_notes", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_go_to_dashboard", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_go_to_profile", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_toggle_theme", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_logout", "type": "boolean", "value": false }
   ]
 }

@@ -1,95 +1,373 @@
 {
   "card": {
-    "log_id": "welcome_screen",
+    "log_id": "div2_sample_card",
     "states": [
       {
         "state_id": 0,
         "div": {
           "type": "container",
           "orientation": "vertical",
-          "height": { "type": "match_parent" },
-          "background": [{ "type": "solid", "color": "#f0f2f8" }],
-          "paddings": { "top": 80, "bottom": 48, "left": 20, "right": 20 },
+          "width": {
+            "type": "match_parent"
+          },
+          "height": {
+            "type": "match_parent"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "@{flare_dark_mode ? '#0f0f1a' : '#f0f2f8'}"
+            }
+          ],
           "items": [
             {
-              "type": "container",
+              "type": "gallery",
               "orientation": "vertical",
-              "background": [{ "type": "solid", "color": "#ffffff" }],
-              "border": { "corner_radius": 20 },
-              "paddings": { "top": 32, "bottom": 32, "left": 20, "right": 20 },
-              "margins": { "bottom": 24 },
+              "width": {
+                "type": "match_parent"
+              },
+              "weight": 1,
+              "paddings": {
+                "bottom": 24
+              },
               "items": [
                 {
-                  "type": "text",
-                  "text": "Hello, @{flare_first_name} 👋",
-                  "font_size": 24,
-                  "font_weight": "bold",
-                  "text_alignment_horizontal": "center",
-                  "text_color": "#1a1a2e"
+                  "type": "container",
+                  "orientation": "horizontal",
+                  "paddings": {
+                    "top": 56,
+                    "bottom": 16,
+                    "left": 20,
+                    "right": 20
+                  },
+                  "content_alignment_vertical": "center",
+                  "items": [
+                    {
+                      "type": "text",
+                      "text": "🔥 Flare",
+                      "font_size": 20,
+                      "font_weight": "bold",
+                      "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                      "width": {
+                        "type": "match_parent"
+                      },
+                      "weight": 1
+                    },
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "width": {
+                        "type": "fixed",
+                        "value": 40
+                      },
+                      "height": {
+                        "type": "fixed",
+                        "value": 40
+                      },
+                      "background": [
+                        {
+                          "type": "solid",
+                          "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                        }
+                      ],
+                      "border": {
+                        "corner_radius": 20
+                      },
+                      "content_alignment_horizontal": "center",
+                      "content_alignment_vertical": "center",
+                      "margins": {
+                        "right": 8
+                      },
+                      "items": [
+                        {
+                          "type": "text",
+                          "text": "@{flare_dark_mode ? '☀️' : '🌙'}",
+                          "font_size": 18,
+                          "text_alignment_horizontal": "center"
+                        }
+                      ],
+                      "action": {
+                        "log_id": "btn_theme",
+                        "url": "flare://action",
+                        "payload": {
+                          "flare_action": "toggle_theme"
+                        }
+                      }
+                    },
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "width": {
+                        "type": "fixed",
+                        "value": 40
+                      },
+                      "height": {
+                        "type": "fixed",
+                        "value": 40
+                      },
+                      "background": [
+                        {
+                          "type": "solid",
+                          "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                        }
+                      ],
+                      "border": {
+                        "corner_radius": 20
+                      },
+                      "content_alignment_horizontal": "center",
+                      "content_alignment_vertical": "center",
+                      "items": [
+                        {
+                          "type": "text",
+                          "text": "🚪",
+                          "font_size": 16,
+                          "text_alignment_horizontal": "center"
+                        }
+                      ],
+                      "action": {
+                        "log_id": "btn_logout",
+                        "url": "flare://action",
+                        "payload": {
+                          "flare_action": "logout"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "container",
+                  "orientation": "vertical",
+                  "paddings": {
+                    "top": 8,
+                    "left": 20,
+                    "right": 20
+                  },
+                  "items": [
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "background": [
+                        {
+                          "type": "solid",
+                          "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                        }
+                      ],
+                      "border": {
+                        "corner_radius": 24
+                      },
+                      "paddings": {
+                        "top": 36,
+                        "bottom": 36,
+                        "left": 20,
+                        "right": 20
+                      },
+                      "margins": {
+                        "bottom": 16
+                      },
+                      "items": [
+                        {
+                          "type": "text",
+                          "text": "Hello, @{flare_first_name} 👋",
+                          "font_size": 26,
+                          "font_weight": "bold",
+                          "text_alignment_horizontal": "center",
+                          "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                          "margins": {
+                            "bottom": 6
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "text": "Welcome back to your Flare workspace",
+                          "font_size": 14,
+                          "text_alignment_horizontal": "center",
+                          "text_color": "@{flare_dark_mode ? '#9090a8' : '#888888'}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "background": [
+                        {
+                          "type": "gradient",
+                          "colors": [
+                            "#8e44ad",
+                            "#6c3483"
+                          ],
+                          "angle": 135
+                        }
+                      ],
+                      "border": {
+                        "corner_radius": 20
+                      },
+                      "paddings": {
+                        "top": 24,
+                        "bottom": 24,
+                        "left": 24,
+                        "right": 24
+                      },
+                      "margins": {
+                        "bottom": 16
+                      },
+                      "alpha": "@{local_flare_pending_go_to_notes ? 0.6 : 1.0}",
+                      "items": [
+                        {
+                          "type": "text",
+                          "text": "📝",
+                          "font_size": 30,
+                          "margins": {
+                            "bottom": 8
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "text": "My Notes",
+                          "font_size": 19,
+                          "font_weight": "bold",
+                          "text_color": "#ffffff",
+                          "margins": {
+                            "bottom": 2
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "text": "Capture your thoughts, organized & searchable",
+                          "font_size": 13,
+                          "text_color": "#e8d5f0"
+                        }
+                      ],
+                      "action": {
+                        "log_id": "btn_notes",
+                        "url": "flare://action",
+                        "payload": {
+                          "flare_action": "go_to_notes"
+                        }
+                      }
+                    },
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "visibility": "@{flare_is_admin ? 'visible' : 'gone'}",
+                      "items": [
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "background": [
+                            {
+                              "type": "gradient",
+                              "colors": [
+                                "#1a1a2e",
+                                "#2c2c44"
+                              ],
+                              "angle": 135
+                            }
+                          ],
+                          "border": {
+                            "corner_radius": 20
+                          },
+                          "paddings": {
+                            "top": 24,
+                            "bottom": 24,
+                            "left": 24,
+                            "right": 24
+                          },
+                          "margins": {
+                            "bottom": 16
+                          },
+                          "alpha": "@{local_flare_pending_go_to_dashboard ? 0.6 : 1.0}",
+                          "items": [
+                            {
+                              "type": "text",
+                              "text": "👑",
+                              "font_size": 30,
+                              "margins": {
+                                "bottom": 8
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "text": "Dashboard",
+                              "font_size": 19,
+                              "font_weight": "bold",
+                              "text_color": "#ffffff",
+                              "margins": {
+                                "bottom": 2
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "text": "Live platform metrics & insights",
+                              "font_size": 13,
+                              "text_color": "#b8b8c8"
+                            }
+                          ],
+                          "action": {
+                            "log_id": "btn_dashboard",
+                            "url": "flare://action",
+                            "payload": {
+                              "flare_action": "go_to_dashboard"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
                 }
-              ]
-            },
-            {
-              "type": "text",
-              "text": "📝 My Notes",
-              "font_size": 18,
-              "font_weight": "bold",
-              "text_alignment_horizontal": "center",
-              "text_color": "#ffffff",
-              "background": [{ "type": "solid", "color": "#8e44ad" }],
-              "border": { "corner_radius": 16 },
-              "paddings": { "top": 20, "bottom": 20 },
-              "margins": { "bottom": 16 },
-              "alpha": "@{local_flare_pending_go_to_notes ? 0.5 : 1.0}",
-              "action": {
-                "log_id": "btn_notes",
-                "url": "flare://action",
-                "payload": { "flare_action": "go_to_notes" }
+              ],
+              "height": {
+                "type": "match_parent"
               }
             },
             {
               "type": "container",
-              "orientation": "vertical",
-              "visibility": "@{flare_is_admin ? 'visible' : 'gone'}",
+              "orientation": "horizontal",
+              "width": {
+                "type": "match_parent"
+              },
+              "background": [
+                {
+                  "type": "solid",
+                  "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                }
+              ],
+              "border": {
+                "corner_radius": 0
+              },
+              "paddings": {
+                "top": 18,
+                "bottom": 34,
+                "left": 20,
+                "right": 20
+              },
+              "content_alignment_vertical": "center",
+              "alpha": "@{local_flare_pending_go_to_profile ? 0.6 : 1.0}",
               "items": [
                 {
                   "type": "text",
-                  "text": "👑 Admin Dashboard",
-                  "font_size": 18,
+                  "text": "👤 Edit Profile →",
+                  "font_size": 16,
                   "font_weight": "bold",
-                  "text_alignment_horizontal": "center",
-                  "text_color": "#ffffff",
-                  "background": [{ "type": "solid", "color": "#1a1a2e" }],
-                  "border": { "corner_radius": 16 },
-                  "paddings": { "top": 20, "bottom": 20 },
-                  "margins": { "bottom": 16 },
-                  "alpha": "@{local_flare_pending_go_to_admin ? 0.5 : 1.0}",
-                  "action": {
-                    "log_id": "btn_admin",
-                    "url": "flare://action",
-                    "payload": { "flare_action": "go_to_admin" }
-                  }
+                  "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                  "width": {
+                    "type": "match_parent"
+                  },
+                  "weight": 1,
+                  "text_alignment_horizontal": "center"
                 }
-              ]
-            },
-            {
-              "type": "text",
-              "text": "Edit Profile",
-              "font_size": 16,
-              "font_weight": "bold",
-              "text_alignment_horizontal": "center",
-              "text_color": "#1a1a2e",
-              "paddings": { "top": 16, "bottom": 16 },
-              "alpha": "@{local_flare_pending_go_to_profile ? 0.5 : 1.0}",
+              ],
               "action": {
                 "log_id": "btn_profile",
                 "url": "flare://action",
-                "payload": { "flare_action": "go_to_profile" }
+                "payload": {
+                  "flare_action": "go_to_profile"
+                }
               }
             }
           ]
         }
       }
     ]
-  }
+  },
+  "templates": {}
 }

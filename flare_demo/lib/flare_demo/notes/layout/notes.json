@@ -1,85 +1,1316 @@
 {
   "card": {
-    "log_id": "notes_screen",
+    "log_id": "div2_sample_card",
     "states": [
       {
         "state_id": 0,
         "div": {
           "type": "container",
           "orientation": "vertical",
-          "height": { "type": "match_parent" },
-          "background": [{ "type": "solid", "color": "#f0f2f8" }],
-          "paddings": { "top": 64, "bottom": 32, "left": 20, "right": 20 },
+          "width": {
+            "type": "match_parent"
+          },
+          "height": {
+            "type": "match_parent"
+          },
+          "background": [
+            {
+              "type": "solid",
+              "color": "@{flare_dark_mode ? '#0f0f1a' : '#f0f2f8'}"
+            }
+          ],
           "items": [
             {
-              "type": "text",
-              "text": "My Notes",
-              "font_size": 28,
-              "font_weight": "bold",
-              "text_color": "#1a1a2e",
-              "margins": { "bottom": 24 }
-            },
-            {
-              "type": "input",
-              "text_variable": "local_new_note",
-              "hint_text": "Write a note...",
-              "font_size": 16,
-              "background": [{ "type": "solid", "color": "#ffffff" }],
-              "border": { "corner_radius": 12 },
-              "paddings": { "top": 16, "bottom": 16, "left": 16, "right": 16 },
-              "margins": { "bottom": 16 }
-            },
-            {
-              "type": "text",
-              "text": "@{local_flare_pending_add_note ? 'Saving...' : 'Add Note'}",
-              "font_size": 16,
-              "font_weight": "bold",
-              "text_alignment_horizontal": "center",
-              "text_color": "#ffffff",
-              "background": [{ "type": "solid", "color": "#3498db" }],
-              "border": { "corner_radius": 12 },
-              "paddings": { "top": 16, "bottom": 16 },
-              "margins": { "bottom": 32 },
-              "alpha": "@{local_flare_pending_add_note ? 0.5 : 1.0}",
-              "action": {
-                "log_id": "btn_add",
-                "url": "flare://action",
-                "payload": { "flare_action": "add_note", "content": "@{local_new_note}" }
-              }
-            },
-            {
-              "type": "container",
+              "type": "gallery",
               "orientation": "vertical",
-              "background": [{ "type": "solid", "color": "#ffffff" }],
-              "border": { "corner_radius": 16 },
-              "paddings": { "top": 24, "bottom": 24, "left": 20, "right": 20 },
-              "margins": { "bottom": 24 },
+              "width": {
+                "type": "match_parent"
+              },
+              "height": {
+                "type": "match_parent"
+              },
+              "weight": 1,
               "items": [
                 {
-                  "type": "text",
-                  "text": "@{flare_notes_text}",
-                  "font_size": 16,
-                  "line_height": 24,
-                  "text_color": "#444444"
+                  "type": "container",
+                  "orientation": "vertical",
+                  "width": {
+                    "type": "match_parent"
+                  },
+                  "height": {
+                    "type": "wrap_content"
+                  },
+                  "items": [
+                    {
+                      "type": "container",
+                      "orientation": "horizontal",
+                      "paddings": {
+                        "top": 56,
+                        "bottom": 12,
+                        "left": 20,
+                        "right": 20
+                      },
+                      "content_alignment_vertical": "center",
+                      "items": [
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "width": {
+                            "type": "fixed",
+                            "value": 40
+                          },
+                          "height": {
+                            "type": "fixed",
+                            "value": 40
+                          },
+                          "background": [
+                            {
+                              "type": "solid",
+                              "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                            }
+                          ],
+                          "border": {
+                            "corner_radius": 20
+                          },
+                          "content_alignment_horizontal": "center",
+                          "content_alignment_vertical": "center",
+                          "margins": {
+                            "right": 12
+                          },
+                          "items": [
+                            {
+                              "type": "text",
+                              "text": "←",
+                              "font_size": 18,
+                              "font_weight": "bold",
+                              "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                              "text_alignment_horizontal": "center"
+                            }
+                          ],
+                          "action": {
+                            "log_id": "btn_back",
+                            "url": "flare://action",
+                            "payload": {
+                              "flare_action": "go_back"
+                            }
+                          }
+                        },
+                        {
+                          "type": "text",
+                          "text": "📝 My Notes",
+                          "font_size": 20,
+                          "font_weight": "bold",
+                          "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                          "width": {
+                            "type": "match_parent"
+                          },
+                          "weight": 1
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "width": {
+                            "type": "fixed",
+                            "value": 40
+                          },
+                          "height": {
+                            "type": "fixed",
+                            "value": 40
+                          },
+                          "background": [
+                            {
+                              "type": "solid",
+                              "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                            }
+                          ],
+                          "border": {
+                            "corner_radius": 20
+                          },
+                          "content_alignment_horizontal": "center",
+                          "content_alignment_vertical": "center",
+                          "margins": {
+                            "right": 8
+                          },
+                          "items": [
+                            {
+                              "type": "text",
+                              "text": "@{flare_dark_mode ? '☀️' : '🌙'}",
+                              "font_size": 18,
+                              "text_alignment_horizontal": "center"
+                            }
+                          ],
+                          "action": {
+                            "log_id": "btn_theme",
+                            "url": "flare://action",
+                            "payload": {
+                              "flare_action": "toggle_theme"
+                            }
+                          }
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "width": {
+                            "type": "fixed",
+                            "value": 40
+                          },
+                          "height": {
+                            "type": "fixed",
+                            "value": 40
+                          },
+                          "background": [
+                            {
+                              "type": "solid",
+                              "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                            }
+                          ],
+                          "border": {
+                            "corner_radius": 20
+                          },
+                          "content_alignment_horizontal": "center",
+                          "content_alignment_vertical": "center",
+                          "items": [
+                            {
+                              "type": "text",
+                              "text": "🚪",
+                              "font_size": 16,
+                              "text_alignment_horizontal": "center"
+                            }
+                          ],
+                          "action": {
+                            "log_id": "btn_logout",
+                            "url": "flare://action",
+                            "payload": {
+                              "flare_action": "logout"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "container",
+                      "orientation": "vertical",
+                      "paddings": {
+                        "top": 4,
+                        "bottom": 40,
+                        "left": 20,
+                        "right": 20
+                      },
+                      "items": [
+                        {
+                          "type": "container",
+                          "orientation": "horizontal",
+                          "background": [
+                            {
+                              "type": "solid",
+                              "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                            }
+                          ],
+                          "border": {
+                            "corner_radius": 16
+                          },
+                          "paddings": {
+                            "top": 4,
+                            "bottom": 4,
+                            "left": 4,
+                            "right": 4
+                          },
+                          "margins": {
+                            "bottom": 12
+                          },
+                          "content_alignment_vertical": "center",
+                          "items": [
+                            {
+                              "type": "input",
+                              "width": {
+                                "type": "match_parent"
+                              },
+                              "weight": 1,
+                              "text_variable": "local_new_note",
+                              "hint_text": "Enter first name (optional)",
+                              "font_size": 16,
+                              "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                              "hint_color": "@{flare_dark_mode ? '#5a5a70' : '#cccccc'}",
+                              "highlight_color": "#8e44ad",
+                              "accessibility": {
+                                "description": "First name input"
+                              },
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "@{flare_dark_mode ? '#2a2a3e' : '#f7f7f7'}"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 12
+                              },
+                              "paddings": {
+                                "top": 14,
+                                "bottom": 14,
+                                "left": 16,
+                                "right": 16
+                              },
+                              "margins": {
+                                "right": 8
+                              }
+                            },
+                            {
+                              "type": "container",
+                              "orientation": "vertical",
+                              "width": {
+                                "type": "fixed",
+                                "value": 44
+                              },
+                              "height": {
+                                "type": "fixed",
+                                "value": 44
+                              },
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "#8e44ad"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 14
+                              },
+                              "content_alignment_horizontal": "center",
+                              "content_alignment_vertical": "center",
+                              "alpha": "@{local_flare_pending_add_note ? 0.5 : 1.0}",
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "@{local_flare_pending_add_note ? '…' : '+'}",
+                                  "font_size": 22,
+                                  "font_weight": "bold",
+                                  "text_color": "#ffffff",
+                                  "text_alignment_horizontal": "center"
+                                }
+                              ],
+                              "action": {
+                                "log_id": "btn_add",
+                                "url": "flare://action",
+                                "payload": {
+                                  "flare_action": "add_note",
+                                  "content": "@{local_new_note}"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "horizontal",
+                          "margins": {
+                            "bottom": 12
+                          },
+                          "items": [
+                            {
+                              "type": "text",
+                              "text": "@{flare_notes_total} note@{flare_notes_total == 1 ? '' : 's'} total",
+                              "font_size": 13,
+                              "font_weight": "bold",
+                              "text_color": "@{flare_dark_mode ? '#9090a8' : '#888888'}",
+                              "width": {
+                                "type": "match_parent"
+                              },
+                              "weight": 1
+                            },
+                            {
+                              "type": "text",
+                              "text": "Page @{flare_current_page} of @{flare_total_pages}",
+                              "font_size": 13,
+                              "text_color": "@{flare_dark_mode ? '#9090a8' : '#888888'}"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "visibility": "@{flare_notes_empty ? 'visible' : 'gone'}",
+                          "background": [
+                            {
+                              "type": "solid",
+                              "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                            }
+                          ],
+                          "border": {
+                            "corner_radius": 18
+                          },
+                          "paddings": {
+                            "top": 40,
+                            "bottom": 40,
+                            "left": 20,
+                            "right": 20
+                          },
+                          "margins": {
+                            "bottom": 12
+                          },
+                          "content_alignment_horizontal": "center",
+                          "items": [
+                            {
+                              "type": "text",
+                              "text": "🗒️",
+                              "font_size": 36,
+                              "text_alignment_horizontal": "center",
+                              "margins": {
+                                "bottom": 8
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "text": "No notes yet",
+                              "font_size": 15,
+                              "font_weight": "bold",
+                              "text_alignment_horizontal": "center",
+                              "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                              "margins": {
+                                "bottom": 4
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "text": "Write your first note above",
+                              "font_size": 13,
+                              "text_alignment_horizontal": "center",
+                              "text_color": "@{flare_dark_mode ? '#9090a8' : '#888888'}"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "visibility": "@{flare_note_0_visible ? 'visible' : 'gone'}",
+                          "margins": {
+                            "bottom": 10
+                          },
+                          "items": [
+                            {
+                              "type": "container",
+                              "orientation": "vertical",
+                              "visibility": "@{flare_confirm_slot != 0 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 18,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 18
+                              },
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "@{flare_note_0_text}",
+                                  "font_size": 15,
+                                  "line_height": 21,
+                                  "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                                  "margins": {
+                                    "bottom": 10
+                                  }
+                                },
+                                {
+                                  "type": "container",
+                                  "orientation": "horizontal",
+                                  "content_alignment_vertical": "center",
+                                  "items": [
+                                    {
+                                      "type": "text",
+                                      "text": "@{flare_note_0_date}",
+                                      "font_size": 12,
+                                      "text_color": "@{flare_dark_mode ? '#5a5a70' : '#aaaaaa'}",
+                                      "width": {
+                                        "type": "match_parent"
+                                      },
+                                      "weight": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "text": "🗑️",
+                                      "font_size": 15,
+                                      "paddings": {
+                                        "top": 4,
+                                        "bottom": 4,
+                                        "left": 10,
+                                        "right": 4
+                                      },
+                                      "action": {
+                                        "log_id": "btn_del_0",
+                                        "url": "flare://action",
+                                        "payload": {
+                                          "flare_action": "request_delete_0"
+                                        }
+                                      },
+                                      "text_alignment_horizontal": "right"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "container",
+                              "orientation": "horizontal",
+                              "visibility": "@{flare_confirm_slot == 0 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "#fdecea"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 14,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 14
+                              },
+                              "content_alignment_vertical": "center",
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "Delete this note?",
+                                  "font_size": 14,
+                                  "font_weight": "bold",
+                                  "text_color": "#c0392b",
+                                  "width": {
+                                    "type": "match_parent"
+                                  },
+                                  "weight": 1
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Cancel",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#888888",
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 12,
+                                    "right": 12
+                                  },
+                                  "margins": {
+                                    "right": 4
+                                  },
+                                  "action": {
+                                    "log_id": "btn_cancel_0",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "cancel_delete"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Delete",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#ffffff",
+                                  "background": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#e74c3c"
+                                    }
+                                  ],
+                                  "border": {
+                                    "corner_radius": 10
+                                  },
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 14,
+                                    "right": 14
+                                  },
+                                  "action": {
+                                    "log_id": "btn_confirm_0",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "confirm_delete_0"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "visibility": "@{flare_note_1_visible ? 'visible' : 'gone'}",
+                          "margins": {
+                            "bottom": 10
+                          },
+                          "items": [
+                            {
+                              "type": "container",
+                              "orientation": "vertical",
+                              "visibility": "@{flare_confirm_slot != 1 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 18,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 18
+                              },
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "@{flare_note_1_text}",
+                                  "font_size": 15,
+                                  "line_height": 21,
+                                  "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                                  "margins": {
+                                    "bottom": 10
+                                  }
+                                },
+                                {
+                                  "type": "container",
+                                  "orientation": "horizontal",
+                                  "content_alignment_vertical": "center",
+                                  "items": [
+                                    {
+                                      "type": "text",
+                                      "text": "@{flare_note_1_date}",
+                                      "font_size": 12,
+                                      "text_color": "@{flare_dark_mode ? '#5a5a70' : '#aaaaaa'}",
+                                      "width": {
+                                        "type": "match_parent"
+                                      },
+                                      "weight": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "text": "🗑️",
+                                      "font_size": 15,
+                                      "paddings": {
+                                        "top": 4,
+                                        "bottom": 4,
+                                        "left": 10,
+                                        "right": 4
+                                      },
+                                      "action": {
+                                        "log_id": "btn_del_1",
+                                        "url": "flare://action",
+                                        "payload": {
+                                          "flare_action": "request_delete_1"
+                                        }
+                                      },
+                                      "text_alignment_horizontal": "right"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "container",
+                              "orientation": "horizontal",
+                              "visibility": "@{flare_confirm_slot == 1 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "#fdecea"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 14,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 14
+                              },
+                              "content_alignment_vertical": "center",
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "Delete this note?",
+                                  "font_size": 14,
+                                  "font_weight": "bold",
+                                  "text_color": "#c0392b",
+                                  "width": {
+                                    "type": "match_parent"
+                                  },
+                                  "weight": 1
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Cancel",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#888888",
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 12,
+                                    "right": 12
+                                  },
+                                  "margins": {
+                                    "right": 4
+                                  },
+                                  "action": {
+                                    "log_id": "btn_cancel_1",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "cancel_delete"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Delete",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#ffffff",
+                                  "background": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#e74c3c"
+                                    }
+                                  ],
+                                  "border": {
+                                    "corner_radius": 10
+                                  },
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 14,
+                                    "right": 14
+                                  },
+                                  "action": {
+                                    "log_id": "btn_confirm_1",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "confirm_delete_1"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "visibility": "@{flare_note_2_visible ? 'visible' : 'gone'}",
+                          "margins": {
+                            "bottom": 10
+                          },
+                          "items": [
+                            {
+                              "type": "container",
+                              "orientation": "vertical",
+                              "visibility": "@{flare_confirm_slot != 2 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 18,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 18
+                              },
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "@{flare_note_2_text}",
+                                  "font_size": 15,
+                                  "line_height": 21,
+                                  "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                                  "margins": {
+                                    "bottom": 10
+                                  }
+                                },
+                                {
+                                  "type": "container",
+                                  "orientation": "horizontal",
+                                  "content_alignment_vertical": "center",
+                                  "items": [
+                                    {
+                                      "type": "text",
+                                      "text": "@{flare_note_2_date}",
+                                      "font_size": 12,
+                                      "text_color": "@{flare_dark_mode ? '#5a5a70' : '#aaaaaa'}",
+                                      "width": {
+                                        "type": "match_parent"
+                                      },
+                                      "weight": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "text": "🗑️",
+                                      "font_size": 15,
+                                      "paddings": {
+                                        "top": 4,
+                                        "bottom": 4,
+                                        "left": 10,
+                                        "right": 4
+                                      },
+                                      "action": {
+                                        "log_id": "btn_del_2",
+                                        "url": "flare://action",
+                                        "payload": {
+                                          "flare_action": "request_delete_2"
+                                        }
+                                      },
+                                      "text_alignment_horizontal": "right"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "container",
+                              "orientation": "horizontal",
+                              "visibility": "@{flare_confirm_slot == 2 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "#fdecea"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 14,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 14
+                              },
+                              "content_alignment_vertical": "center",
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "Delete this note?",
+                                  "font_size": 14,
+                                  "font_weight": "bold",
+                                  "text_color": "#c0392b",
+                                  "width": {
+                                    "type": "match_parent"
+                                  },
+                                  "weight": 1
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Cancel",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#888888",
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 12,
+                                    "right": 12
+                                  },
+                                  "margins": {
+                                    "right": 4
+                                  },
+                                  "action": {
+                                    "log_id": "btn_cancel_2",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "cancel_delete"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Delete",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#ffffff",
+                                  "background": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#e74c3c"
+                                    }
+                                  ],
+                                  "border": {
+                                    "corner_radius": 10
+                                  },
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 14,
+                                    "right": 14
+                                  },
+                                  "action": {
+                                    "log_id": "btn_confirm_2",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "confirm_delete_2"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "visibility": "@{flare_note_3_visible ? 'visible' : 'gone'}",
+                          "margins": {
+                            "bottom": 10
+                          },
+                          "items": [
+                            {
+                              "type": "container",
+                              "orientation": "vertical",
+                              "visibility": "@{flare_confirm_slot != 3 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 18,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 18
+                              },
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "@{flare_note_3_text}",
+                                  "font_size": 15,
+                                  "line_height": 21,
+                                  "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                                  "margins": {
+                                    "bottom": 10
+                                  }
+                                },
+                                {
+                                  "type": "container",
+                                  "orientation": "horizontal",
+                                  "content_alignment_vertical": "center",
+                                  "items": [
+                                    {
+                                      "type": "text",
+                                      "text": "@{flare_note_3_date}",
+                                      "font_size": 12,
+                                      "text_color": "@{flare_dark_mode ? '#5a5a70' : '#aaaaaa'}",
+                                      "width": {
+                                        "type": "match_parent"
+                                      },
+                                      "weight": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "text": "🗑️",
+                                      "font_size": 15,
+                                      "paddings": {
+                                        "top": 4,
+                                        "bottom": 4,
+                                        "left": 10,
+                                        "right": 4
+                                      },
+                                      "action": {
+                                        "log_id": "btn_del_3",
+                                        "url": "flare://action",
+                                        "payload": {
+                                          "flare_action": "request_delete_3"
+                                        }
+                                      },
+                                      "text_alignment_horizontal": "right"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "container",
+                              "orientation": "horizontal",
+                              "visibility": "@{flare_confirm_slot == 3 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "#fdecea"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 14,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 14
+                              },
+                              "content_alignment_vertical": "center",
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "Delete this note?",
+                                  "font_size": 14,
+                                  "font_weight": "bold",
+                                  "text_color": "#c0392b",
+                                  "width": {
+                                    "type": "match_parent"
+                                  },
+                                  "weight": 1
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Cancel",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#888888",
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 12,
+                                    "right": 12
+                                  },
+                                  "margins": {
+                                    "right": 4
+                                  },
+                                  "action": {
+                                    "log_id": "btn_cancel_3",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "cancel_delete"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Delete",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#ffffff",
+                                  "background": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#e74c3c"
+                                    }
+                                  ],
+                                  "border": {
+                                    "corner_radius": 10
+                                  },
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 14,
+                                    "right": 14
+                                  },
+                                  "action": {
+                                    "log_id": "btn_confirm_3",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "confirm_delete_3"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "container",
+                          "orientation": "vertical",
+                          "visibility": "@{flare_note_4_visible ? 'visible' : 'gone'}",
+                          "margins": {
+                            "bottom": 10
+                          },
+                          "items": [
+                            {
+                              "type": "container",
+                              "orientation": "vertical",
+                              "visibility": "@{flare_confirm_slot != 4 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 18,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 18
+                              },
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "@{flare_note_4_text}",
+                                  "font_size": 15,
+                                  "line_height": 21,
+                                  "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                                  "margins": {
+                                    "bottom": 10
+                                  }
+                                },
+                                {
+                                  "type": "container",
+                                  "orientation": "horizontal",
+                                  "content_alignment_vertical": "center",
+                                  "items": [
+                                    {
+                                      "type": "text",
+                                      "text": "@{flare_note_4_date}",
+                                      "font_size": 12,
+                                      "text_color": "@{flare_dark_mode ? '#5a5a70' : '#aaaaaa'}",
+                                      "width": {
+                                        "type": "match_parent"
+                                      },
+                                      "weight": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "text": "🗑️",
+                                      "font_size": 15,
+                                      "paddings": {
+                                        "top": 4,
+                                        "bottom": 4,
+                                        "left": 10,
+                                        "right": 4
+                                      },
+                                      "action": {
+                                        "log_id": "btn_del_4",
+                                        "url": "flare://action",
+                                        "payload": {
+                                          "flare_action": "request_delete_4"
+                                        }
+                                      },
+                                      "text_alignment_horizontal": "right"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "container",
+                              "orientation": "horizontal",
+                              "visibility": "@{flare_confirm_slot == 4 ? 'visible' : 'gone'}",
+                              "background": [
+                                {
+                                  "type": "solid",
+                                  "color": "#fdecea"
+                                }
+                              ],
+                              "border": {
+                                "corner_radius": 16
+                              },
+                              "paddings": {
+                                "top": 14,
+                                "bottom": 14,
+                                "left": 18,
+                                "right": 14
+                              },
+                              "content_alignment_vertical": "center",
+                              "items": [
+                                {
+                                  "type": "text",
+                                  "text": "Delete this note?",
+                                  "font_size": 14,
+                                  "font_weight": "bold",
+                                  "text_color": "#c0392b",
+                                  "width": {
+                                    "type": "match_parent"
+                                  },
+                                  "weight": 1
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Cancel",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#888888",
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 12,
+                                    "right": 12
+                                  },
+                                  "margins": {
+                                    "right": 4
+                                  },
+                                  "action": {
+                                    "log_id": "btn_cancel_4",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "cancel_delete"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "text": "Delete",
+                                  "font_size": 13,
+                                  "font_weight": "bold",
+                                  "text_color": "#ffffff",
+                                  "background": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#e74c3c"
+                                    }
+                                  ],
+                                  "border": {
+                                    "corner_radius": 10
+                                  },
+                                  "paddings": {
+                                    "top": 8,
+                                    "bottom": 8,
+                                    "left": 14,
+                                    "right": 14
+                                  },
+                                  "action": {
+                                    "log_id": "btn_confirm_4",
+                                    "url": "flare://action",
+                                    "payload": {
+                                      "flare_action": "confirm_delete_4"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             },
             {
-              "type": "text",
-              "text": "← Back to Home",
-              "font_size": 15,
-              "text_alignment_horizontal": "center",
-              "text_color": "#888888",
-              "paddings": { "top": 16, "bottom": 16 },
-              "action": {
-                "log_id": "btn_back",
-                "url": "flare://action",
-                "payload": { "flare_action": "go_back" }
-              }
+              "type": "container",
+              "orientation": "horizontal",
+              "paddings": {
+                "top": 12,
+                "bottom": 24,
+                "left": 20,
+                "right": 20
+              },
+              "background": [
+                {
+                  "type": "solid",
+                  "color": "@{flare_dark_mode ? '#0f0f1a' : '#f0f2f8'}"
+                }
+              ],
+              "items": [
+                {
+                  "type": "container",
+                  "orientation": "vertical",
+                  "background": [
+                    {
+                      "type": "solid",
+                      "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                    }
+                  ],
+                  "border": {
+                    "corner_radius": 14
+                  },
+                  "paddings": {
+                    "top": 14,
+                    "bottom": 14
+                  },
+                  "margins": {
+                    "right": 6
+                  },
+                  "width": {
+                    "type": "match_parent"
+                  },
+                  "weight": 1,
+                  "content_alignment_horizontal": "center",
+                  "alpha": "@{flare_has_prev ? 1.0 : 0.35}",
+                  "items": [
+                    {
+                      "type": "text",
+                      "text": "← Prev",
+                      "font_size": 14,
+                      "font_weight": "bold",
+                      "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                      "text_alignment_horizontal": "center"
+                    }
+                  ],
+                  "action": {
+                    "log_id": "btn_prev",
+                    "url": "flare://action",
+                    "payload": {
+                      "flare_action": "prev_page"
+                    }
+                  }
+                },
+                {
+                  "type": "container",
+                  "orientation": "vertical",
+                  "background": [
+                    {
+                      "type": "solid",
+                      "color": "@{flare_dark_mode ? '#1c1c2e' : '#ffffff'}"
+                    }
+                  ],
+                  "border": {
+                    "corner_radius": 14
+                  },
+                  "paddings": {
+                    "top": 14,
+                    "bottom": 14
+                  },
+                  "margins": {
+                    "left": 6
+                  },
+                  "width": {
+                    "type": "match_parent"
+                  },
+                  "weight": 1,
+                  "content_alignment_horizontal": "center",
+                  "alpha": "@{flare_has_next ? 1.0 : 0.35}",
+                  "items": [
+                    {
+                      "type": "text",
+                      "text": "Next →",
+                      "font_size": 14,
+                      "font_weight": "bold",
+                      "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                      "text_alignment_horizontal": "center"
+                    }
+                  ],
+                  "action": {
+                    "log_id": "btn_next",
+                    "url": "flare://action",
+                    "payload": {
+                      "flare_action": "next_page"
+                    }
+                  }
+                }
+              ]
             }
           ]
         }
       }
     ]
-  }
+  },
+  "templates": {}
 }

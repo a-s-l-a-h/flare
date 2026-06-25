@@ -1,8 +1,47 @@
 {
   "variables": [
-    { "name": "flare_notes_text",               "type": "string", "value": "" },
-    { "name": "local_new_note",                 "type": "string", "value": "" },
-    { "name": "local_flare_pending_add_note",   "type": "boolean", "value": false },
-    { "name": "local_flare_pending_go_back",    "type": "boolean", "value": false }
+    { "name": "local_new_note", "type": "string", "value": "" },
+    { "name": "flare_dark_mode", "type": "boolean", "value": false },
+    { "name": "flare_confirm_slot", "type": "integer", "value": -1 },
+
+    { "name": "flare_current_page", "type": "integer", "value": 1 },
+    { "name": "flare_total_pages", "type": "integer", "value": 1 },
+    { "name": "flare_notes_total", "type": "integer", "value": 0 },
+    { "name": "flare_has_next", "type": "boolean", "value": false },
+    { "name": "flare_has_prev", "type": "boolean", "value": false },
+    { "name": "flare_notes_empty", "type": "boolean", "value": true },
+
+    { "name": "local_flare_pending_add_note", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_next_page", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_prev_page", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_go_back", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_logout", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_toggle_theme", "type": "boolean", "value": false },
+    { "name": "local_flare_pending_cancel_delete", "type": "boolean", "value": false },
+
+    { "name": "flare_note_0_visible", "type": "boolean", "value": false },
+    { "name": "flare_note_0_text", "type": "string", "value": "" },
+    { "name": "flare_note_0_date", "type": "string", "value": "" },
+    { "name": "local_note_0_id", "type": "string", "value": "" },
+
+    { "name": "flare_note_1_visible", "type": "boolean", "value": false },
+    { "name": "flare_note_1_text", "type": "string", "value": "" },
+    { "name": "flare_note_1_date", "type": "string", "value": "" },
+    { "name": "local_note_1_id", "type": "string", "value": "" },
+
+    { "name": "flare_note_2_visible", "type": "boolean", "value": false },
+    { "name": "flare_note_2_text", "type": "string", "value": "" },
+    { "name": "flare_note_2_date", "type": "string", "value": "" },
+    { "name": "local_note_2_id", "type": "string", "value": "" },
+
+    { "name": "flare_note_3_visible", "type": "boolean", "value": false },
+    { "name": "flare_note_3_text", "type": "string", "value": "" },
+    { "name": "flare_note_3_date", "type": "string", "value": "" },
+    { "name": "local_note_3_id", "type": "string", "value": "" },
+
+    { "name": "flare_note_4_visible", "type": "boolean", "value": false },
+    { "name": "flare_note_4_text", "type": "string", "value": "" },
+    { "name": "flare_note_4_date", "type": "string", "value": "" },
+    { "name": "local_note_4_id", "type": "string", "value": "" }
   ]
 }

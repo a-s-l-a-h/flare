@@ -3,12 +3,13 @@ defmodule FlareDemo.Profile do
   alias FlareDemo.Users.User
 
   screen_dir __DIR__
+  # 2. Add this line to turn off caching for this screen
+  use_cache false
 
   @impl true
   def mount(_params, socket) do
     user = User.get(socket.user_id)
 
-    # ⬇️ THE FIX: Fallback to "" if user is nil OR if first_name is nil!
     first = (user && user.first_name) || ""
     last = (user && user.last_name) || ""
 
@@ -25,7 +26,6 @@ defmodule FlareDemo.Profile do
     first = payload |> Map.get("first_name", "") |> String.trim()
     last  = payload |> Map.get("last_name",  "") |> String.trim()
 
-    # Update the database
     case User.update_profile(socket.user_id, first, last) do
       {:ok, _user} -> :ok
       _ -> :error
@@ -40,8 +40,17 @@ defmodule FlareDemo.Profile do
 
   @impl true
   def handle_event("go_back", _payload, socket) do
-    socket
-    |> navigate("welcome")
-    |> then(&{:noreply, &1})
+    {:noreply, navigate(socket, "welcome")}
+  end
+
+  @impl true
+  def handle_event("toggle_theme", _payload, socket) do
+    current = socket.assigns[:flare_dark_mode] || false
+    {:noreply, assign(socket, :flare_dark_mode, !current)}
+  end
+
+  @impl true
+  def handle_event("logout", _payload, socket) do
+    {:noreply, clear_storage(socket)}
   end
 end

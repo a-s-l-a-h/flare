@@ -10,7 +10,7 @@ config :flare_demo, FlareDemo.Endpoint,
 
 config :flare,
   router:         FlareDemo.FlareRouter,
-  global_keys:    [],
+  global_keys:    [:flare_dark_mode],
   enable_logging: true,
   endpoint:       FlareDemo.Endpoint,
   # ⬇️ NOW IT POINTS DIRECTLY TO THE USER MODEL ⬇️

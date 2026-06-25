@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="height:100%;overflow:hidden;"></html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -15,7 +15,7 @@
     -webkit-tap-highlight-color: transparent !important;
   }
 </style>
-<body style="margin:0;padding:0;background:#f0f2f8;font-family:sans-serif;">
+<body style="margin:0;padding:0;background:#0f0f1a;font-family:sans-serif;height:100%;overflow:hidden;"></body>
 
   <div id="flare-login" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;">
 
@@ -57,7 +57,7 @@
     </div>
   </div>
 
-  <div id="flare-root" style="width:100%;min-height:100vh;"></div>
+  <div id="flare-root" style="width:100%;height:100vh;overflow:hidden;position:fixed;top:0;left:0;display:none;"></div>
 
   <script>
     window.__flare__ = { wsUrl: "/socket", token: null, entryScreen: "welcome" };

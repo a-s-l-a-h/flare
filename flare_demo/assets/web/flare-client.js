@@ -243,7 +243,14 @@ const params = { token: this.token };
       globalVariablesController: this.globalController,
       onCustomAction:            (action) => this._handleAction(action)
     });
+    const divkitRoot = this.rootEl.firstElementChild;
+    if (divkitRoot) {
+      divkitRoot.style.width  = "100%";
+      divkitRoot.style.height = "100%";
+    }
+
   }
+  
 
   _registerActionPendingVars(layoutJson) {
       const actions = this._extractFlareActions(layoutJson);
@@ -346,6 +353,13 @@ const params = { token: this.token };
       globalVariablesController: this.globalController,
       onCustomAction:            (action) => this._handleAction(action)
     });
+
+    const divkitRoot = this.rootEl.firstElementChild;
+      if (divkitRoot) {
+        divkitRoot.style.width  = "100%";
+        divkitRoot.style.height = "100%";
+      }
+
   }
 
   // ---------------------------------------------------------------------------
