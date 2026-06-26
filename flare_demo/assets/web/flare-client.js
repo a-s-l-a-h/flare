@@ -100,23 +100,41 @@ window.addEventListener("popstate", () => {
   // connect() — open the WebSocket connection once
   // ---------------------------------------------------------------------------
   connect() {
-    this.log("Connecting...", this.wsUrl);
+  this.log("Connecting...", this.wsUrl);
 
-    // Token is always required — obtained from /auth/guest or /auth/login
-// before this connect() is called. index.html guarantees this.
-// If somehow token is missing, fail loudly rather than connect anonymously.
-if (!this.token) {
-  console.error("[Flare] connect() called with no token. User must authenticate first.");
-  this._handleAuthFailure();
-  return;
-}
-const params = { token: this.token };
-
-    this.socket = new Socket(this.wsUrl, { params });
-    this.socket.connect();
-    this.socket.onOpen(() => this.log("✅ WebSocket connected"));
-    this.socket.onClose(() => this.log("❌ WebSocket closed"));
+  // Token is always required — obtained from /auth/guest or /auth/login
+  // before this connect() is called. index.html guarantees this.
+  if (!this.token) {
+    console.error("[Flare] connect() called with no token. User must authenticate first.");
+    this._handleAuthFailure();
+    return;
   }
+
+  const params = { token: this.token };
+
+  // ---------------------------------------------------------------------------
+  // Custom decoder: handles both text frames (patch, ACKs, all normal messages)
+  // and binary frames (init, layout_update when server has optimize: true).
+  //
+  // Phoenix Socket accepts a `decode` option. If we return a Promise,
+  // Phoenix awaits it before dispatching to channel event handlers.
+  //
+  // Text frames arrive as strings — we parse the Phoenix V2 format: "event\njson"
+  // Binary frames arrive as ArrayBuffer — we parse our custom Flare binary format.
+  //
+  // FALLBACK SAFETY: if binary parsing throws for any reason (corrupt frame,
+  // version mismatch, etc.), the error is caught in the channel .on("init") handler
+  // which shows an error message rather than crashing silently.
+  // ---------------------------------------------------------------------------
+  this.socket = new Socket(this.wsUrl, {
+    params,
+    decode: (rawData, callback) => this._decodeFrame(rawData, callback)
+  });
+
+  this.socket.connect();
+  this.socket.onOpen(() => this.log("✅ WebSocket connected"));
+  this.socket.onClose(() => this.log("❌ WebSocket closed"));
+}
   // ADD this method — reads current browser URL, returns which screen to show
 // Reads current browser URL, dynamically returns which screen to show
   _screenFromUrl() {
@@ -164,9 +182,31 @@ const params = { token: this.token };
     this.currentScreen  = screenName;
     this.currentChannel = this.socket.channel(`flare:${screenName}`, params);
 
-    this.currentChannel.on("init",          (envelope) => this._handleInit(envelope));
-    this.currentChannel.on("patch",         (envelope) => this._handlePatch(envelope));
-    this.currentChannel.on("layout_update", (envelope) => this._handleLayoutUpdate(envelope));
+    // ---------------------------------------------------------------------------
+// _handleInit and _handleLayoutUpdate are async because binary frame
+// decompression uses the browser's native DecompressionStream API which
+// returns Promises. We wrap in async arrow + try/catch so an error in
+// binary parsing shows a user-visible error rather than a silent failure.
+// _handlePatch remains synchronous — patch messages are always text JSON.
+// ---------------------------------------------------------------------------
+this.currentChannel.on("init", async (envelope) => {
+  try {
+    await this._handleInit(envelope);
+  } catch (e) {
+    console.error("[Flare] ❌ Error handling init", e);
+    this._showError("Failed to load screen. Please refresh.");
+  }
+});
+
+this.currentChannel.on("patch", (envelope) => this._handlePatch(envelope));
+
+this.currentChannel.on("layout_update", async (envelope) => {
+  try {
+    await this._handleLayoutUpdate(envelope);
+  } catch (e) {
+    console.error("[Flare] ❌ Error handling layout_update", e);
+  }
+});
 
     this.currentChannel
       .join()
@@ -191,65 +231,68 @@ const params = { token: this.token };
   // ---------------------------------------------------------------------------
   // _handleInit — full screen render
   // ---------------------------------------------------------------------------
-  _handleInit(envelope) {
-    this.log("📥 INIT received", envelope);
+  // ---------------------------------------------------------------------------
+// _handleInit — full screen render
+//
+// envelope arrives already decoded by _decodeFrame:
+//   Plain path (optimize: false OR use_cache false screens):
+//     { screen, layout: {...}, variables: [...], state: {...}, commands: [...] }
+//   Optimized binary path (optimize: true, use_cache true screens):
+//     Same shape — _decodeFrame already decompressed layout and variables.
+//     The handler code is IDENTICAL for both paths. Zero special casing here.
+// ---------------------------------------------------------------------------
+async _handleInit(envelope) {
+  this.log("📥 INIT received", envelope);
 
-    // ---------------------------------------------------------------------------
-    // CHANGED: Register local_flare_pending first, before any developer variables.
-    // This guarantees the variable always exists on every screen regardless of
-    // whether the developer listed it in their state JSON.
-    // Value starts false — no event is in flight when a screen first loads.
-    // ---------------------------------------------------------------------------
-    // Reset all per-action pending vars on new screen load
-    // Auto scan layout and register pending var for every action found
-    this._registerActionPendingVars(envelope.layout);
+  // Register per-action pending variables by scanning the layout JSON tree.
+  // Must happen before variables are registered so the pending vars exist
+  // when DivKit starts binding expressions.
+  this._registerActionPendingVars(envelope.layout);
 
-    // Register variable type definitions from state JSON
-    if (envelope.variables) {
-      envelope.variables.forEach(v => {
-        this._setVariable(v.name, v.type, v.value);
-      });
-    }
-
-    // Apply current server state values on top
-    if (envelope.state) {
-      Object.entries(envelope.state).forEach(([key, value]) => {
-        this._setVariable(key, null, value);
-      });
-    }
-
-    // Execute bootstrap commands from the init envelope.
-    // The server puts store_token here on first connect (new guest session).
-    // This saves the signed guest token to localStorage so the next page
-    // load sends it and the server can restore state for this user.
-    // Also triggers a socket reconnect (see store_token case below) so
-    // the rest of this session uses the signed identity, not anonymous.
-    if (envelope.commands) {
-      envelope.commands.forEach(cmd => this._executeCommand(cmd));
-    }
-
-    // Handle both { card: {...} } and bare card JSON
-    let divkitJson = envelope.layout;
-    if (!divkitJson.card) {
-      divkitJson = { card: envelope.layout };
-    }
-
-    // Clear spinner and render DivKit
-    this.rootEl.innerHTML = "";
-    render({
-      id:                        `flare-${this.currentScreen}`,
-      target:                    this.rootEl,
-      json:                      divkitJson,
-      globalVariablesController: this.globalController,
-      onCustomAction:            (action) => this._handleAction(action)
+  // Register variable type definitions from the state JSON file.
+  // These define the type (integer, boolean, string, etc.) for each variable.
+  if (envelope.variables) {
+    envelope.variables.forEach(v => {
+      this._setVariable(v.name, v.type, v.value);
     });
-    const divkitRoot = this.rootEl.firstElementChild;
-    if (divkitRoot) {
-      divkitRoot.style.width  = "100%";
-      divkitRoot.style.height = "100%";
-    }
-
   }
+
+  // Apply current server-side state values on top of the type definitions.
+  // These are the user's actual runtime values from their UserState GenServer.
+  if (envelope.state) {
+    Object.entries(envelope.state).forEach(([key, value]) => {
+      this._setVariable(key, null, value);
+    });
+  }
+
+  // Execute any commands the server sent with the init envelope
+  // (e.g. store_token on first guest session connect).
+  if (envelope.commands) {
+    envelope.commands.forEach(cmd => this._executeCommand(cmd));
+  }
+
+  // Handle both { card: {...} } and bare card JSON (DivKit accepts both)
+  let divkitJson = envelope.layout;
+  if (!divkitJson.card) {
+    divkitJson = { card: envelope.layout };
+  }
+
+  // Clear spinner and render DivKit layout
+  this.rootEl.innerHTML = "";
+  render({
+    id:                        `flare-${this.currentScreen}`,
+    target:                    this.rootEl,
+    json:                      divkitJson,
+    globalVariablesController: this.globalController,
+    onCustomAction:            (action) => this._handleAction(action)
+  });
+
+  const divkitRoot = this.rootEl.firstElementChild;
+  if (divkitRoot) {
+    divkitRoot.style.width  = "100%";
+    divkitRoot.style.height = "100%";
+  }
+}
   
 
   _registerActionPendingVars(layoutJson) {
@@ -309,58 +352,62 @@ const params = { token: this.token };
   // ---------------------------------------------------------------------------
   // _handleLayoutUpdate — hot deployment layout refresh
   // ---------------------------------------------------------------------------
-  _handleLayoutUpdate(envelope) {
-    this.log("📥 LAYOUT_UPDATE received", envelope);
+  // ---------------------------------------------------------------------------
+// _handleLayoutUpdate — hot deployment layout refresh
+//
+// Same envelope shape as _handleInit. Already decoded by _decodeFrame.
+// Preserves current variable values across the layout swap so the user
+// doesn't lose their dark mode toggle, pagination state, etc.
+// ---------------------------------------------------------------------------
+async _handleLayoutUpdate(envelope) {
+  this.log("📥 LAYOUT_UPDATE received", envelope);
 
-    // Capture all current variable values before destroying renderer
-    const savedValues = {};
-    if (envelope.variables) {
-      envelope.variables.forEach(v => {
-        const existing = this.globalController.getVariable(v.name);
-        if (existing) savedValues[v.name] = existing.getValue();
-      });
-    }
-
-    // ---------------------------------------------------------------------------
-    // Always clear any in-flight pending state on layout update.
-    // A layout update during an in-flight event would be unusual, but if it
-    // happens, start the new layout with a clean pending state.
-    // ---------------------------------------------------------------------------
-    this._clearAllPending();
-
-    // Reset all per-action pending vars on new screen load
-    // Auto scan layout and register pending var for every action found
-    this._registerActionPendingVars(envelope.layout);
-
-    // Re-register variable definitions, restoring saved values
-    if (envelope.variables) {
-      envelope.variables.forEach(v => {
-        const value = savedValues[v.name] !== undefined ? savedValues[v.name] : v.value;
-        this._setVariable(v.name, v.type, value);
-      });
-    }
-
-    let divkitJson = envelope.layout;
-    if (!divkitJson.card) {
-      divkitJson = { card: envelope.layout };
-    }
-
-    this.rootEl.innerHTML = "";
-    render({
-      id:                        `flare-${this.currentScreen}-updated`,
-      target:                    this.rootEl,
-      json:                      divkitJson,
-      globalVariablesController: this.globalController,
-      onCustomAction:            (action) => this._handleAction(action)
+  // Save current variable values before destroying the renderer.
+  // We restore these after re-registering variables below.
+  const savedValues = {};
+  if (envelope.variables) {
+    envelope.variables.forEach(v => {
+      const existing = this.globalController.getVariable(v.name);
+      if (existing) savedValues[v.name] = existing.getValue();
     });
-
-    const divkitRoot = this.rootEl.firstElementChild;
-      if (divkitRoot) {
-        divkitRoot.style.width  = "100%";
-        divkitRoot.style.height = "100%";
-      }
-
   }
+
+  // Clear any in-flight pending state — a layout update during an in-flight
+  // event is unusual but we handle it cleanly.
+  this._clearAllPending();
+
+  // Re-scan the new layout for action names and register pending vars
+  this._registerActionPendingVars(envelope.layout);
+
+  // Re-register variables, restoring saved values where they exist.
+  // New variables introduced by the layout update get their default values.
+  if (envelope.variables) {
+    envelope.variables.forEach(v => {
+      const value = savedValues[v.name] !== undefined ? savedValues[v.name] : v.value;
+      this._setVariable(v.name, v.type, value);
+    });
+  }
+
+  let divkitJson = envelope.layout;
+  if (!divkitJson.card) {
+    divkitJson = { card: envelope.layout };
+  }
+
+  this.rootEl.innerHTML = "";
+  render({
+    id:                        `flare-${this.currentScreen}-updated`,
+    target:                    this.rootEl,
+    json:                      divkitJson,
+    globalVariablesController: this.globalController,
+    onCustomAction:            (action) => this._handleAction(action)
+  });
+
+  const divkitRoot = this.rootEl.firstElementChild;
+  if (divkitRoot) {
+    divkitRoot.style.width  = "100%";
+    divkitRoot.style.height = "100%";
+  }
+}
 
   // ---------------------------------------------------------------------------
   // _handleAction — DivKit fires this for flare://action URLs
@@ -563,6 +610,123 @@ const params = { token: this.token };
                   ">${message}</div>
                 `;
               }
+
+              // ---------------------------------------------------------------------------
+// _decodeFrame — custom Phoenix socket decoder
+//
+// Called by Phoenix Socket for EVERY incoming WebSocket frame before the
+// message is dispatched to channel .on() handlers.
+//
+// Text frame (string): standard Phoenix V2 format "event\npayload_json"
+//   → parse synchronously, call callback immediately
+//
+// Binary frame (ArrayBuffer): Flare binary format (see Flare.Serializer)
+//   → parse asynchronously (DecompressionStream), call callback when done
+//
+// Phoenix accepts a Promise returned from the decode callback and awaits it,
+// so async binary parsing integrates cleanly with the channel dispatch loop.
+// ---------------------------------------------------------------------------
+_decodeFrame(rawData, callback) {
+    if (rawData instanceof ArrayBuffer) {
+      // Binary frame — Flare optimized path (optimize: true on server)
+      return this._parseBinaryFrame(rawData).then(callback).catch(e => {
+        console.error("[Flare] ❌ Binary frame parse error:", e);
+      });
+    }
+
+    // Text frame — standard Phoenix V2 format is a JSON Array: [join_ref, ref, topic, event, payload]
+    try {
+      const parsed = JSON.parse(rawData);
+      callback({
+        join_ref: parsed[0],
+        ref:      parsed[1],
+        topic:    parsed[2],
+        event:    parsed[3],
+        payload:  parsed[4]
+      });
+    } catch (e) {
+      console.error("[Flare] Malformed text frame:", rawData);
+    }
+  }
+
+  async _parseBinaryFrame(buffer) {
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    const version = view.getUint8(offset); offset += 1;
+    if (version !== 1) {
+      throw new Error(`[Flare] Unknown binary frame version: ${version}. Update your Flare client.`);
+    }
+
+    const headerLen   = view.getUint32(offset, false); offset += 4;  // false = big-endian
+    const headerBytes = new Uint8Array(buffer, offset, headerLen);   offset += headerLen;
+    const header      = JSON.parse(new TextDecoder().decode(headerBytes));
+
+    const layoutLen = view.getUint32(offset, false); offset += 4;
+    const layoutGz  = new Uint8Array(buffer, offset, layoutLen);    offset += layoutLen;
+
+    const varsLen = view.getUint32(offset, false); offset += 4;
+    const varsGz  = new Uint8Array(buffer, offset, varsLen);
+
+    const [layout, variables] = await Promise.all([
+      this._gunzip(layoutGz),
+      this._gunzip(varsGz)
+    ]);
+
+    const { encoding: _encoding, ...payloadWithoutEncoding } = header.payload;
+    
+    // Pass the restored routing properties (topic, join_ref, etc) back to Phoenix JS
+    return {
+      join_ref: header.join_ref,
+      ref:      header.ref,
+      topic:    header.topic,
+      event:    header.event,
+      payload: {
+        ...payloadWithoutEncoding,
+        layout,
+        variables
+      }
+    };
+  }
+
+// ---------------------------------------------------------------------------
+// _gunzip — decompress gzip bytes to a parsed JSON value
+//
+// Uses the browser's native DecompressionStream API — no library needed,
+// available in all modern browsers (Chrome 80+, Firefox 113+, Safari 16.4+).
+//
+// Android equivalent: java.util.zip.GZIPInputStream (zero dependencies)
+// iOS equivalent:     compression_decode_buffer with COMPRESSION_ZLIB
+//                     (Foundation framework, zero dependencies)
+// ---------------------------------------------------------------------------
+async _gunzip(gzippedBytes) {
+  // Feed the compressed bytes into a native gzip decompression stream
+  const ds     = new DecompressionStream("gzip");
+  const writer = ds.writable.getWriter();
+  writer.write(gzippedBytes);
+  writer.close();
+
+  // Collect all output chunks
+  const reader = ds.readable.getReader();
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+
+  // Concatenate chunks into a single Uint8Array
+  const totalLen = chunks.reduce((n, c) => n + c.length, 0);
+  const allBytes = new Uint8Array(totalLen);
+  let pos = 0;
+  for (const chunk of chunks) {
+    allBytes.set(chunk, pos);
+    pos += chunk.length;
+  }
+
+  // Decode UTF-8 bytes and parse JSON
+  return JSON.parse(new TextDecoder().decode(allBytes));
+}
 
               // ---------------------------------------------------------------------------
               // _resolvePayload — Cross-platform contract: see SPEC_EXPRESSION_RESOLUTION.md

@@ -26,6 +26,14 @@ config :flare_demo, FlareDemo.Repo,
 
 config :phoenix, :json_library, Jason
 
+
+# Flare optimization: gzip-compress layout and variables JSON at startup.
+# Screens with use_cache true get their layout compressed once at startup.
+# Binary WebSocket frames are used for init and layout_update events.
+# Patch/state diffs are always plain JSON — they are tiny and never compressed.
+# Set to false (or remove) to revert to plain JSON for all messages.
+config :flare, optimize: true
+
 config :esbuild,
   version: "0.17.11",
   flare_demo: [

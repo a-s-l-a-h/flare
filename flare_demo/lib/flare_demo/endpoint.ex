@@ -1,5 +1,3 @@
-# Location: flare_demo/lib/flare_demo/endpoint.ex
-
 defmodule FlareDemo.Endpoint do
   use Phoenix.Endpoint, otp_app: :flare_demo
 
@@ -22,8 +20,12 @@ defmodule FlareDemo.Endpoint do
   plug Plug.MethodOverride
   plug Plug.Head
 
+  # 👇 THIS IS FIXED: We declare the custom serializer here!
   socket "/socket", FlareDemo.UserSocket,
-    websocket: [compress: true], 
+    websocket: [
+      compress: true,
+      serializer: [{Flare.Serializer, "~> 2.0.0"}]
+    ],
     longpoll: false
 
   plug FlareDemo.HttpRouter
