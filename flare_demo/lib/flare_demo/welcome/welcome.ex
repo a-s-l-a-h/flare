@@ -4,7 +4,7 @@ defmodule FlareDemo.Welcome do
 
   screen_dir __DIR__
   # 2. Add this line to turn off caching for this screen
-  use_cache false
+  #use_cache false
   @impl true
   def mount(_params, socket) do
     user = User.get(socket.user_id)

@@ -227,7 +227,7 @@
                               },
                               "weight": 1,
                               "text_variable": "local_new_note",
-                              "hint_text": "Enter first name (optional)",
+                              "hint_text": "Enter note ",
                               "font_size": 16,
                               "text_color": "@{flare_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
                               "hint_color": "@{flare_dark_mode ? '#5a5a70' : '#cccccc'}",

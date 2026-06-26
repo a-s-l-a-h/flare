@@ -256,6 +256,15 @@ public class PhoenixChannelClient {
         void log(String tag, String msg);
     }
 
+    /**
+     * Optional hook to decode inbound WebSocket messages before they are processed.
+     * Runs on the OkHttp background network thread (perfect for heavy parsing/decompression).
+     */
+    public interface MessageDecoder {
+        String decode(String text) throws Exception;
+        String decode(okio.ByteString bytes) throws Exception;
+    }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  §2  RETRY TIMER
@@ -1287,6 +1296,16 @@ public class PhoenixChannelClient {
             private long heartbeatMs = HEARTBEAT_INTERVAL_MS;
             private PhoenixLogger logger = null;
 
+            private MessageDecoder decoder = new MessageDecoder() {
+                @Override public String decode(String text) { return text; }
+                @Override public String decode(okio.ByteString bytes) { return bytes.utf8(); }
+            };
+
+            public Builder decoder(MessageDecoder decoder) {
+                this.decoder = decoder;
+                return this;
+            }
+
             /**
              * @param endpointBase WebSocket URL base, e.g. "wss://host/socket".
              *                     "/websocket" is appended automatically if absent.
@@ -1329,7 +1348,7 @@ public class PhoenixChannelClient {
             }
 
             public PhoenixSocket build() {
-                return new PhoenixSocket(endpointBase, params, timeout, heartbeatMs, logger);
+                return new PhoenixSocket(endpointBase, params, timeout, heartbeatMs, logger, decoder);
             }
         }
 
@@ -1339,6 +1358,7 @@ public class PhoenixChannelClient {
         private final long timeout;         // default push timeout
         private final long heartbeatIntervalMs;
         private final PhoenixLogger logger;
+        private final MessageDecoder decoder;
 
         // ── Runtime state ──────────────────────────────────────────────────────────────
         //
@@ -1396,7 +1416,8 @@ public class PhoenixChannelClient {
                       Map<String, String> params,
                       long timeout,
                       long heartbeatIntervalMs,
-                      PhoenixLogger logger) {
+                      PhoenixLogger logger,
+                      MessageDecoder decoder) {
             // Normalise: strip trailing slash, ensure /websocket suffix
             String url = endpointBase.replaceAll("/+$", "");
             if (!url.endsWith("/websocket")) url = url + "/websocket";
@@ -1408,6 +1429,7 @@ public class PhoenixChannelClient {
             // Default to Android Log if no logger provided
             this.logger = (logger != null) ? logger
                     : (tag, msg) -> Log.d(TAG, "[" + tag + "] " + msg);
+            this.decoder = decoder;
 
             // ── Handler thread ──
             handlerThread = new HandlerThread("PhxSocket");
@@ -1734,27 +1756,32 @@ public class PhoenixChannelClient {
 
                 @Override
                 public void onMessage(WebSocket ws, String text) {
-                    handler.post(() -> {
-                        if (clock != connectClock) return;
-                        onConnMessage(text);
-                    });
+                    try {
+                        final String decoded = decoder.decode(text);
+                        if (decoded != null && !decoded.isEmpty()) {
+                            handler.post(() -> {
+                                if (clock != connectClock) return;
+                                onConnMessage(decoded);
+                            });
+                        }
+                    } catch (Exception e) {
+                        log("transport", "Decoder failed on text message: " + e.getMessage());
+                    }
                 }
 
                 @Override
-                public void onMessage(WebSocket ws, ByteString bytes) {
-                    // Phoenix binary messages: try to decode as UTF-8 text.
-                    // The full binary frame protocol (for file uploads etc.) uses a
-                    // different encoding but standard channel messages always arrive
-                    // as JSON text frames. We handle binary by attempting UTF-8 decode.
-                    handler.post(() -> {
-                        if (clock != connectClock) return;
-                        String text = bytes.utf8();
-                        if (!text.isEmpty()) {
-                            onConnMessage(text);
-                        } else {
-                            log("transport", "Received empty binary frame — ignoring");
+                public void onMessage(WebSocket ws, okio.ByteString bytes) {
+                    try {
+                        final String decoded = decoder.decode(bytes);
+                        if (decoded != null && !decoded.isEmpty()) {
+                            handler.post(() -> {
+                                if (clock != connectClock) return;
+                                onConnMessage(decoded);
+                            });
                         }
-                    });
+                    } catch (Exception e) {
+                        log("transport", "Decoder failed on binary message: " + e.getMessage());
+                    }
                 }
 
                 @Override

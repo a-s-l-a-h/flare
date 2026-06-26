@@ -61,6 +61,7 @@ import com.example.flare_android_client.flare.FlareCommandHandler;
 import com.example.flare_android_client.flare.FlareEnvelope;
 import com.example.flare_android_client.native_features.NativeFeatureBridge;
 import com.example.flare_android_client.phoenix.PhoenixChannelClient;
+import com.example.flare_android_client.flare.FlareMessageDecoder;
 import com.yandex.div.core.Div2Context;
 import com.yandex.div.core.DivConfiguration;
 import com.yandex.div.core.view2.Div2View;
@@ -318,6 +319,7 @@ public class FlareClientActivity extends AppCompatActivity {
                 new PhoenixChannelClient.PhoenixSocket.Builder(wsUrl)
                         .timeout(10_000)
                         .heartbeatIntervalMs(30_000)
+                        .decoder(new FlareMessageDecoder())
                         .logger((tag, msg) -> Log.d("PhxSocket[" + tag + "]", msg));
 
         // Only attach token param if we have one.
@@ -337,16 +339,17 @@ public class FlareClientActivity extends AppCompatActivity {
         // Socket closed — show error in UI
         socket.onClose((code, reason) -> {
             Log.w(TAG, "Socket closed: code=" + code + " reason=" + reason);
+            pendingActions.clear();
             runOnUiThread(() -> {
-                if (code != 1000) { // 1000 = normal close (we disconnected on purpose)
+                if (code != 1000) {
                     showError("Disconnected. Reconnecting…");
                 }
             });
         });
 
-        // Socket error
         socket.onError(reason -> {
             Log.e(TAG, "Socket error: " + reason);
+            pendingActions.clear();
             runOnUiThread(() -> showError("Connection error: " + reason));
         });
 
@@ -1080,15 +1083,71 @@ public class FlareClientActivity extends AppCompatActivity {
         }
     }
 
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  IRONCLAD INPUT BLOCKER (Touch, USB Mouse, Hardware Keyboard, D-Pad)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        // Block all physical touches and mouse clicks while spinner is visible
+        if (pbSpinner != null && pbSpinner.getVisibility() == View.VISIBLE) {
+            return true; // Return true to consume the event (drop it completely)
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        // Block hardware keyboards, Bluetooth clickers, and D-Pads
+        if (pbSpinner != null && pbSpinner.getVisibility() == View.VISIBLE) {
+            int keyCode = event.getKeyCode();
+
+            // 🔥 CRITICAL: Allow System keys to bypass the lock!
+            if (keyCode == android.view.KeyEvent.KEYCODE_BACK ||
+                    keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP ||
+                    keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN ||
+                    keyCode == android.view.KeyEvent.KEYCODE_POWER) {
+                return super.dispatchKeyEvent(event);
+            }
+
+            // Block all other keys (Enter, Space, Tab, Arrows, Letters)
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(android.view.MotionEvent ev) {
+        // Block mouse scroll wheels and external pointing device movements
+        if (pbSpinner != null && pbSpinner.getVisibility() == View.VISIBLE) {
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(ev);
+    }
+
     // ═══════════════════════════════════════
     //  UI HELPERS
     // ═══════════════════════════════════════
+
+    // ═══════════════════════════════════════
+    //  UI HELPERS
+    // ═══════════════════════════════════════
+
+//    private void showSpinner() {
+//        Log.d(TAG, "showSpinner");
+//        pbSpinner.setVisibility(View.VISIBLE);
+//        tvError.setVisibility(View.GONE);
+//        flContainer.setVisibility(View.INVISIBLE); // keep layout space, hide content
+//    }
 
     private void showSpinner() {
         Log.d(TAG, "showSpinner");
         pbSpinner.setVisibility(View.VISIBLE);
         tvError.setVisibility(View.GONE);
-        flContainer.setVisibility(View.INVISIBLE); // keep layout space, hide content
+        // We removed the flContainer.setVisibility(View.INVISIBLE) line.
+        // The old screen now stays visible underneath the spinner,
+        // and our hardware blocker stops it from being clicked!
     }
 
     private void hideSpinner() {
@@ -1099,7 +1158,14 @@ public class FlareClientActivity extends AppCompatActivity {
 
     private void showError(String message) {
         Log.e(TAG, "showError: " + message);
-        pbSpinner.setVisibility(View.GONE);
+        // Deliberately do NOT hide the spinner here. A timeout/error during
+        // navigation does not mean we've stopped trying — Phoenix's channel
+        // rejoin keeps retrying in the background. Hiding the spinner here
+        // would unlock input (see isInputLocked()) while a reconnect is still
+        // silently in flight, which is the exact "stuck" state you flagged.
+        // The spinner is only cleared by hideSpinner(), called from handleInit()
+        // once a fresh screen has actually, successfully arrived.
+        pbSpinner.setVisibility(View.VISIBLE);
         tvError.setVisibility(View.VISIBLE);
         tvError.setText(message);
     }
