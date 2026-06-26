@@ -1377,7 +1377,7 @@ public class PhoenixChannelClient {
         private Runnable heartbeatTimeoutRun = null;
 
         // Connection lifecycle flags
-        private boolean closeWasClean = true;  // true = we initiated disconnect; suppresses auto-reconnect
+        private boolean closeWasClean = false;  // false = reconnect on unexpected close; set true only by disconnect()
         private boolean disconnecting = false; // true = disconnect() is in progress
         private int connectClock = 0;     // incremented on every new connection attempt
         private int establishedConns = 0;     // how many successful connections we've had total

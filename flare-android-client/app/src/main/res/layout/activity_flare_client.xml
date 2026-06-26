@@ -1,33 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    FlareClientActivity root layout.
+    Stack order (bottom to top):
+      1. fl_container  — DivKit rendered screens live here
+      2. transition_overlay — navigation loading animation + error card
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground">
 
-    <!-- Container where the DivKit JSON layouts are injected -->
+    <!-- DivKit screen container -->
     <FrameLayout
         android:id="@+id/fl_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Loading spinner shown during screen navigation -->
-    <ProgressBar
-        android:id="@+id/pb_spinner"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="center"
-        android:visibility="gone" />
-
-    <!-- Error message display -->
-    <TextView
-        android:id="@+id/tv_error"
+    <!-- Transition overlay — overlaid on top; GONE by default -->
+    <com.example.flare_android_client.TransitionOverlayView
+        android:id="@+id/transition_overlay"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:padding="24dp"
-        android:gravity="center"
-        android:textColor="#E74C3C"
-        android:textSize="16sp"
-        android:visibility="gone" />
+        android:layout_height="match_parent" />
 
 </FrameLayout>

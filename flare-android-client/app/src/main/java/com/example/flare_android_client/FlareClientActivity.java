@@ -75,6 +75,7 @@ import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class FlareClientActivity extends AppCompatActivity {
 
@@ -97,9 +98,8 @@ public class FlareClientActivity extends AppCompatActivity {
     public static final String PENDING_VAR = "local_flare_pending";
 
     // ── Views ──────────────────────────────────────────────────────────────────
-    private FrameLayout    flContainer;   // root container — DivKit views are added here
-    private ProgressBar    pbSpinner;     // shown during screen transitions
-    private TextView       tvError;       // shown on connection errors
+    private FrameLayout           flContainer;      // root container — DivKit views are added here
+    private TransitionOverlayView transitionOverlay; // navigation loading animation + error card
 
     // ── Phoenix ────────────────────────────────────────────────────────────────
     private PhoenixChannelClient.PhoenixSocket    socket;
@@ -128,7 +128,8 @@ public class FlareClientActivity extends AppCompatActivity {
     private Div2View currentDiv2View;
 
     private boolean isEventPending = false;
-    private final Set<String> pendingActions = new HashSet<>();
+    //private final Set<String> pendingActions = new HashSet<>();
+    private final Set<String> pendingActions = ConcurrentHashMap.newKeySet();
 
 
     // ═══════════════════════════════════════
@@ -167,9 +168,8 @@ public class FlareClientActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_flare_client);
 
-        flContainer = findViewById(R.id.fl_container);
-        pbSpinner   = findViewById(R.id.pb_spinner);
-        tvError     = findViewById(R.id.tv_error);
+        flContainer       = findViewById(R.id.fl_container);
+        transitionOverlay = findViewById(R.id.transition_overlay);
 
         // Read intent extras
         wsUrl               = getIntent().getStringExtra(EXTRA_WS_URL);
@@ -331,26 +331,49 @@ public class FlareClientActivity extends AppCompatActivity {
         socket = builder.build();
 
         // Socket opened (or re-opened after reconnect)
+        // Socket opened (or re-opened after reconnect)
         socket.onOpen(() -> {
             Log.d(TAG, "Socket opened");
-            runOnUiThread(() -> tvError.setVisibility(View.GONE));
+            runOnUiThread(() -> {
+                // If the overlay is showing an error from a dropped connection,
+                // retry joining the screen now that socket is back.
+                if (transitionOverlay.isVisible()) {
+                    Log.d(TAG, "Socket reconnected while overlay showing — retrying screen join");
+                    retryCurrentScreen();
+                }
+            });
         });
 
         // Socket closed — show error in UI
+        // Socket closed — clear pending locks and show error if mid-navigation
         socket.onClose((code, reason) -> {
             Log.w(TAG, "Socket closed: code=" + code + " reason=" + reason);
-            pendingActions.clear();
+            clearAllPendingActions(); // resets DivKit variables too, not just the Set
             runOnUiThread(() -> {
                 if (code != 1000) {
-                    showError("Disconnected. Reconnecting…");
+                    if (transitionOverlay.isVisible()) {
+                        transitionOverlay.showError(
+                                "Connection lost. Reconnecting…",
+                                this::retryCurrentScreen
+                        );
+                    }
+                    // If on a stable screen, Phoenix auto-reconnects — no overlay needed.
+                    // Channel rejoin handles restoring state transparently.
                 }
             });
         });
 
         socket.onError(reason -> {
             Log.e(TAG, "Socket error: " + reason);
-            pendingActions.clear();
-            runOnUiThread(() -> showError("Connection error: " + reason));
+            clearAllPendingActions();
+            runOnUiThread(() -> {
+                if (transitionOverlay.isVisible()) {
+                    transitionOverlay.showError(
+                            "Connection error. Please check your network.",
+                            this::retryCurrentScreen
+                    );
+                }
+            });
         });
 
         socket.connect();
@@ -394,11 +417,12 @@ public class FlareClientActivity extends AppCompatActivity {
         }
 
         // ── Clear all pending state — new screen starts fresh ─────────────────
-        isEventPending = false;
-        pendingActions.clear();
+// clearAllPendingActions resets both the Java Set AND the DivKit variables
+// so buttons are never left frozen when navigating away.
+        clearAllPendingActions();
 
-        // ── Show spinner ───────────────────────────────────────────────────────
-        runOnUiThread(this::showSpinner);
+// ── Show transition overlay — old screen stays visible underneath ──────
+        runOnUiThread(() -> transitionOverlay.show(this::retryCurrentScreen));
 
         // ── Update back stack ──────────────────────────────────────────────────
         if (!screenName.equals(currentScreen)) {
@@ -439,12 +463,18 @@ public class FlareClientActivity extends AppCompatActivity {
                         Log.e(TAG, "Auth failed via socket — redirecting to login");
                         runOnUiThread(this::clearStorage);
                     } else {
-                        runOnUiThread(() -> showError("Could not load screen: " + screenName));
+                        runOnUiThread(() -> transitionOverlay.showError(
+                                "Could not load screen: " + screenName,
+                                this::retryCurrentScreen
+                        ));
                     }
                 })
                 .receive("timeout", (p, r, jr) -> {
                     Log.e(TAG, "Timeout joining channel: " + topic);
-                    runOnUiThread(() -> showError("Timeout loading screen: " + screenName));
+                    runOnUiThread(() -> transitionOverlay.showError(
+                            "Loading timed out. Please check your connection.",
+                            this::retryCurrentScreen
+                    ));
                 });
     }
 
@@ -461,11 +491,22 @@ public class FlareClientActivity extends AppCompatActivity {
      * This mirrors the web client's window popstate handler.
      */
     private void handleBack() {
+        // If overlay is showing an error, dismiss and go back rather than retry
+        if (transitionOverlay.isVisible()) {
+            transitionOverlay.hide();
+            if (!backStack.isEmpty()) {
+                String previous = backStack.pop();
+                navigateBack(previous);
+            } else {
+                finish();
+            }
+            return;
+        }
+
         Log.d(TAG, "handleBack: backStack size=" + backStack.size());
         if (!backStack.isEmpty()) {
             String previous = backStack.pop();
             Log.d(TAG, "Back → " + previous);
-            // Use a private version that doesn't push to the back stack again
             navigateBack(previous);
         } else {
             Log.d(TAG, "Back stack empty — finishing Activity");
@@ -484,10 +525,9 @@ public class FlareClientActivity extends AppCompatActivity {
             currentChannel.leave();
             currentChannel = null;
         }
-        currentDiv2View = null; // 🔥 FIX: Clean slate for previous page
-        isEventPending = false;
-        pendingActions.clear();
-        runOnUiThread(this::showSpinner);
+        currentDiv2View = null; // Clean slate for previous page
+        clearAllPendingActions();
+        runOnUiThread(() -> transitionOverlay.show(this::retryCurrentScreen));
 
         currentScreen  = screenName;
         String topic   = "flare:" + screenName;
@@ -499,8 +539,10 @@ public class FlareClientActivity extends AppCompatActivity {
 
         currentChannel.join()
                 .receive("ok",      (p, r, jr) -> Log.d(TAG, "Rejoined: " + topic))
-                .receive("error",   (p, r, jr) -> runOnUiThread(() -> showError("Error: " + screenName)))
-                .receive("timeout", (p, r, jr) -> runOnUiThread(() -> showError("Timeout: " + screenName)));
+                .receive("error",   (p, r, jr) -> runOnUiThread(() -> transitionOverlay.showError(
+                        "Could not load screen: " + screenName, this::retryCurrentScreen)))
+                .receive("timeout", (p, r, jr) -> runOnUiThread(() -> transitionOverlay.showError(
+                        "Timeout loading screen: " + screenName, this::retryCurrentScreen)));
     }
 
 
@@ -578,7 +620,10 @@ public class FlareClientActivity extends AppCompatActivity {
 
             // ── Step 3: Render layout ─────────────────────────────────────────
             if (parsed.layout == null) {
-                showError("Server sent empty layout for screen: " + currentScreen);
+                transitionOverlay.showError(
+                        "Server sent empty layout for screen: " + currentScreen,
+                        this::retryCurrentScreen
+                );
                 return;
             }
 
@@ -588,12 +633,13 @@ public class FlareClientActivity extends AppCompatActivity {
             currentDiv2View = div2View;
 
             // ── Step 4: Show it ───────────────────────────────────────────────
+            // ── Step 4: Show it ───────────────────────────────────────────────────
             flContainer.removeAllViews();
             flContainer.addView(div2View, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
             ));
-            hideSpinner();
+            transitionOverlay.hide(); // fade out overlay, revealing the new screen
 
             // ── Step 5: Execute bootstrap commands from init envelope ─────────
             // The server puts store_token here on first connect (new guest).
@@ -612,7 +658,10 @@ public class FlareClientActivity extends AppCompatActivity {
 
         } catch (Exception e) {
             Log.e(TAG, "handleInit error", e);
-            showError("Error rendering screen: " + e.getMessage());
+            transitionOverlay.showError(
+                    "Error rendering screen: " + e.getMessage(),
+                    this::retryCurrentScreen
+            );
         }
     }
 
@@ -774,10 +823,7 @@ public class FlareClientActivity extends AppCompatActivity {
         // ── Push event to Phoenix server ───────────────────────────────────────
         if (currentChannel == null) {
             Log.e(TAG, "Cannot push event — no active channel");
-            // Clear per-action lock since we are not pushing
-            runOnUiThread(() -> globalVarsController.putOrUpdate(
-                    new Variable.BooleanVariable(actionPendingVar, false)
-            ));
+            releasePendingAction(actionPendingVar);
             return;
         }
 
@@ -790,34 +836,20 @@ public class FlareClientActivity extends AppCompatActivity {
             currentChannel.push("event", eventPayload)
                     .receive("ok", (p, r, jr) -> {
                         Log.d(TAG, "ACK received for: " + eventType);
-                        pendingActions.remove(actionPendingVar);
-                        runOnUiThread(() -> globalVarsController.putOrUpdate(
-                                new Variable.BooleanVariable(actionPendingVar, false)
-                        ));
+                        releasePendingAction(actionPendingVar);
                     })
                     .receive("error", (p, r, jr) -> {
                         Log.e(TAG, "Server rejected event: " + eventType);
-                        pendingActions.remove(actionPendingVar);
-                        runOnUiThread(() -> globalVarsController.putOrUpdate(
-                                new Variable.BooleanVariable(actionPendingVar, false)
-                        ));
+                        releasePendingAction(actionPendingVar);
                     })
                     .receive("timeout", (p, r, jr) -> {
                         Log.e(TAG, "Event timeout: " + eventType);
-                        pendingActions.remove(actionPendingVar);
-                        runOnUiThread(() -> globalVarsController.putOrUpdate(
-                                new Variable.BooleanVariable(actionPendingVar, false)
-                        ));
+                        releasePendingAction(actionPendingVar);
                     });
 
         } catch (Exception e) {
             Log.e(TAG, "onDivKitAction: failed to push event", e);
-            // Clear per-action lock on unexpected error
-            final String pendingVarCapture = actionPendingVar;
-            pendingActions.remove(pendingVarCapture);
-            runOnUiThread(() -> globalVarsController.putOrUpdate(
-                    new Variable.BooleanVariable(pendingVarCapture, false)
-            ));
+            releasePendingAction(actionPendingVar);
         }
     }
 
@@ -861,31 +893,13 @@ public class FlareClientActivity extends AppCompatActivity {
                 eventPayload.put("payload", payload);
 
                 currentChannel.push("event", eventPayload)
-                        .receive("ok", (p, r, jr) -> {
-                            pendingActions.remove(actionPendingVar);
-                            runOnUiThread(() -> globalVarsController.putOrUpdate(
-                                    new Variable.BooleanVariable(actionPendingVar, false)
-                            ));
-                        })
-                        .receive("error", (p, r, jr) -> {
-                            pendingActions.remove(actionPendingVar);
-                            runOnUiThread(() -> globalVarsController.putOrUpdate(
-                                    new Variable.BooleanVariable(actionPendingVar, false)
-                            ));
-                        })
-                        .receive("timeout", (p, r, jr) -> {
-                            pendingActions.remove(actionPendingVar);
-                            runOnUiThread(() -> globalVarsController.putOrUpdate(
-                                    new Variable.BooleanVariable(actionPendingVar, false)
-                            ));
-                        });
+                        .receive("ok",      (p, r, jr) -> releasePendingAction(actionPendingVar))
+                        .receive("error",   (p, r, jr) -> releasePendingAction(actionPendingVar))
+                        .receive("timeout", (p, r, jr) -> releasePendingAction(actionPendingVar));
 
             } catch (Exception e) {
                 Log.e(TAG, "onNativeResult: failed to push to server", e);
-                pendingActions.remove(actionPendingVar);
-                runOnUiThread(() -> globalVarsController.putOrUpdate(
-                        new Variable.BooleanVariable(actionPendingVar, false)
-                ));
+                releasePendingAction(actionPendingVar);
             }
         }
     }
@@ -1084,90 +1098,64 @@ public class FlareClientActivity extends AppCompatActivity {
     }
 
 
-    // ═══════════════════════════════════════════════════════════════════════
-    //  IRONCLAD INPUT BLOCKER (Touch, USB Mouse, Hardware Keyboard, D-Pad)
-    // ═══════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════
+//  PENDING ACTION HELPERS
+// ═══════════════════════════════════════
 
-    @Override
-    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
-        // Block all physical touches and mouse clicks while spinner is visible
-        if (pbSpinner != null && pbSpinner.getVisibility() == View.VISIBLE) {
-            return true; // Return true to consume the event (drop it completely)
-        }
-        return super.dispatchTouchEvent(ev);
+    /**
+     * Release a single pending action lock and reset its DivKit variable.
+     * Replaces the repeated pendingActions.remove + putOrUpdate pattern.
+     * Safe to call from any thread.
+     */
+    private void releasePendingAction(String actionPendingVar) {
+        pendingActions.remove(actionPendingVar);
+        runOnUiThread(() -> globalVarsController.putOrUpdate(
+                new Variable.BooleanVariable(actionPendingVar, false)
+        ));
     }
 
-    @Override
-    public boolean dispatchKeyEvent(android.view.KeyEvent event) {
-        // Block hardware keyboards, Bluetooth clickers, and D-Pads
-        if (pbSpinner != null && pbSpinner.getVisibility() == View.VISIBLE) {
-            int keyCode = event.getKeyCode();
-
-            // 🔥 CRITICAL: Allow System keys to bypass the lock!
-            if (keyCode == android.view.KeyEvent.KEYCODE_BACK ||
-                    keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP ||
-                    keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN ||
-                    keyCode == android.view.KeyEvent.KEYCODE_POWER) {
-                return super.dispatchKeyEvent(event);
+    /**
+     * Clear ALL pending action locks and reset every DivKit pending variable to false.
+     * Call this on navigation and on disconnect so buttons never stay frozen.
+     * Safe to call from any thread.
+     */
+    private void clearAllPendingActions() {
+        Set<String> snapshot = new HashSet<>(pendingActions);
+        pendingActions.clear();
+        runOnUiThread(() -> {
+            for (String varName : snapshot) {
+                globalVarsController.putOrUpdate(new Variable.BooleanVariable(varName, false));
             }
+            globalVarsController.putOrUpdate(new Variable.BooleanVariable(PENDING_VAR, false));
+        });
+    }
 
-            // Block all other keys (Enter, Space, Tab, Arrows, Letters)
-            return true;
+    /**
+     * Re-join the current screen. Called by retry button in the transition overlay.
+     */
+    private void retryCurrentScreen() {
+        if (currentScreen == null) return;
+        Log.d(TAG, "retryCurrentScreen: " + currentScreen);
+
+        if (currentChannel != null) {
+            currentChannel.leave();
+            currentChannel = null;
         }
-        return super.dispatchKeyEvent(event);
-    }
+        clearAllPendingActions();
 
-    @Override
-    public boolean dispatchGenericMotionEvent(android.view.MotionEvent ev) {
-        // Block mouse scroll wheels and external pointing device movements
-        if (pbSpinner != null && pbSpinner.getVisibility() == View.VISIBLE) {
-            return true;
-        }
-        return super.dispatchGenericMotionEvent(ev);
-    }
+        String topic = "flare:" + currentScreen;
+        currentChannel = socket.channel(topic, null);
 
-    // ═══════════════════════════════════════
-    //  UI HELPERS
-    // ═══════════════════════════════════════
+        currentChannel.on("init",          (p, r, jr) -> runOnUiThread(() -> handleInit(p)));
+        currentChannel.on("patch",         (p, r, jr) -> runOnUiThread(() -> handlePatch(p)));
+        currentChannel.on("layout_update", (p, r, jr) -> runOnUiThread(() -> handleLayoutUpdate(p)));
 
-    // ═══════════════════════════════════════
-    //  UI HELPERS
-    // ═══════════════════════════════════════
-
-//    private void showSpinner() {
-//        Log.d(TAG, "showSpinner");
-//        pbSpinner.setVisibility(View.VISIBLE);
-//        tvError.setVisibility(View.GONE);
-//        flContainer.setVisibility(View.INVISIBLE); // keep layout space, hide content
-//    }
-
-    private void showSpinner() {
-        Log.d(TAG, "showSpinner");
-        pbSpinner.setVisibility(View.VISIBLE);
-        tvError.setVisibility(View.GONE);
-        // We removed the flContainer.setVisibility(View.INVISIBLE) line.
-        // The old screen now stays visible underneath the spinner,
-        // and our hardware blocker stops it from being clicked!
-    }
-
-    private void hideSpinner() {
-        Log.d(TAG, "hideSpinner");
-        pbSpinner.setVisibility(View.GONE);
-        flContainer.setVisibility(View.VISIBLE);
-    }
-
-    private void showError(String message) {
-        Log.e(TAG, "showError: " + message);
-        // Deliberately do NOT hide the spinner here. A timeout/error during
-        // navigation does not mean we've stopped trying — Phoenix's channel
-        // rejoin keeps retrying in the background. Hiding the spinner here
-        // would unlock input (see isInputLocked()) while a reconnect is still
-        // silently in flight, which is the exact "stuck" state you flagged.
-        // The spinner is only cleared by hideSpinner(), called from handleInit()
-        // once a fresh screen has actually, successfully arrived.
-        pbSpinner.setVisibility(View.VISIBLE);
-        tvError.setVisibility(View.VISIBLE);
-        tvError.setText(message);
+        currentChannel.join()
+                .receive("ok",      (p, r, jr) -> Log.d(TAG, "Retry joined: " + topic))
+                .receive("error",   (p, r, jr) -> runOnUiThread(() -> transitionOverlay.showError(
+                        "Could not reload screen: " + currentScreen, this::retryCurrentScreen)))
+                .receive("timeout", (p, r, jr) -> runOnUiThread(() -> transitionOverlay.showError(
+                        "Reload timed out.", this::retryCurrentScreen)));
     }
 
     // ═══════════════════════════════════════

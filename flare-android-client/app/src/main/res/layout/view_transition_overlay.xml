@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Full-screen overlay for Flare screen transitions.
+    Sits on top of the old screen while the new one loads.
+    Semi-transparent background so the old content is still faintly visible
+    (gives a sense of continuity rather than a blank flash).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#CC000000">
+
+    <!-- Lottie transition animation — shown while loading -->
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/lottie_transition"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_gravity="center"
+        app:lottie_fileName="flare_transition.json"
+        app:lottie_autoPlay="false"
+        app:lottie_loop="true" />
+
+    <!-- Error card — shown on timeout or connection failure -->
+    <LinearLayout
+        android:id="@+id/card_error"
+        android:layout_width="280dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:background="@drawable/bg_error_card"
+        android:padding="24dp"
+        android:elevation="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚠️"
+            android:textSize="32sp"
+            android:gravity="center"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:id="@+id/tv_transition_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#2C3E50"
+            android:textSize="15sp"
+            android:gravity="center"
+            android:layout_marginBottom="20dp"
+            android:lineSpacingExtra="4dp"/>
+
+        <Button
+            android:id="@+id/btn_retry"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Retry"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:backgroundTint="#3498DB"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_dismiss"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Go Back"
+            android:textSize="14sp"
+            android:textColor="#7F8C8D"
+            android:background="#00000000"
+            style="?android:attr/borderlessButtonStyle"/>
+
+    </LinearLayout>
+
+</FrameLayout>
