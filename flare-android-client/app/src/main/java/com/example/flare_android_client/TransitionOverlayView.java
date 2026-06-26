@@ -42,7 +42,7 @@ public class TransitionOverlayView extends FrameLayout {
     private final View errorCard;
     private final android.widget.TextView tvErrorMessage;
     private final android.widget.Button btnRetry;
-    private final android.widget.Button btnDismiss;
+    //private final android.widget.Button btnDismiss;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private long showStartMs = 0;
@@ -66,7 +66,7 @@ public class TransitionOverlayView extends FrameLayout {
         errorCard     = findViewById(R.id.card_error);
         tvErrorMessage = findViewById(R.id.tv_transition_error);
         btnRetry      = findViewById(R.id.btn_retry);
-        btnDismiss    = findViewById(R.id.btn_dismiss);
+        //btnDismiss    = findViewById(R.id.btn_dismiss);
 
         // Loop the Lottie animation while visible
         lottieView.setRepeatCount(LottieDrawable.INFINITE);
@@ -163,7 +163,7 @@ public class TransitionOverlayView extends FrameLayout {
             btnRetry.setVisibility(View.GONE);
         }
 
-        btnDismiss.setOnClickListener(v -> doHide());
+        //btnDismiss.setOnClickListener(v -> doHide());
 
         Log.d(TAG, "showError: " + message);
     }

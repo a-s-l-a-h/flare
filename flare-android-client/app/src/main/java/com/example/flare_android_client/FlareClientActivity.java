@@ -345,34 +345,32 @@ public class FlareClientActivity extends AppCompatActivity {
         });
 
         // Socket closed — show error in UI
-        // Socket closed — clear pending locks and show error if mid-navigation
+        // Socket closed — clear pending locks and show error
         socket.onClose((code, reason) -> {
             Log.w(TAG, "Socket closed: code=" + code + " reason=" + reason);
             clearAllPendingActions(); // resets DivKit variables too, not just the Set
             runOnUiThread(() -> {
                 if (code != 1000) {
-                    if (transitionOverlay.isVisible()) {
-                        transitionOverlay.showError(
-                                "Connection lost. Reconnecting…",
-                                this::retryCurrentScreen
-                        );
-                    }
-                    // If on a stable screen, Phoenix auto-reconnects — no overlay needed.
-                    // Channel rejoin handles restoring state transparently.
+                    // 🔥 REMOVED the "if (isVisible)" check.
+                    // Now it ALWAYS shows the overlay when the server drops!
+                    transitionOverlay.showError(
+                            "Connection lost. Reconnecting…",
+                            this::retryCurrentScreen
+                    );
                 }
             });
         });
 
+        // Socket error
         socket.onError(reason -> {
             Log.e(TAG, "Socket error: " + reason);
             clearAllPendingActions();
             runOnUiThread(() -> {
-                if (transitionOverlay.isVisible()) {
-                    transitionOverlay.showError(
-                            "Connection error. Please check your network.",
-                            this::retryCurrentScreen
-                    );
-                }
+                // 🔥 REMOVED the "if (isVisible)" check here too.
+                transitionOverlay.showError(
+                        "Connection error. Please check your network.",
+                        this::retryCurrentScreen
+                );
             });
         });
 
