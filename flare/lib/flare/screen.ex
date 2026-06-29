@@ -131,7 +131,25 @@ defmodule Flare.Screen do
   - params  — the join params map sent by the client (same as mount params)
   """
   @callback authorize(user_id :: String.t(), params :: map()) ::
-                :ok | {:error, term()}
+                    :ok | {:error, term()}
+
+  @doc """
+  Returns the PubSub topic this screen's connections should subscribe to.
+
+  Defaults to :default, which tells Flare.Channel to use the old
+  hardcoded "broadcast:\#{screen_name}" topic — so every existing screen
+  keeps working with zero changes.
+
+  Override this when a screen needs per-instance scoping (e.g. one
+  screen template serving many different live "rooms" identified by
+  a param, like a window code):
+
+      def topic(_user_id, params), do: "window:\#{params["code"]}"
+
+  Then broadcast to that exact topic anywhere in your app with
+  Flare.broadcast_to_topic/2.
+  """
+  @callback topic(user_id :: String.t(), params :: map()) :: String.t() | :default
 
   defmacro __using__(_opts) do
     quote do
@@ -144,6 +162,7 @@ defmodule Flare.Screen do
       def authorize(_user_id, _params), do: :ok
       def handle_event(_event, _payload, socket), do: {:noreply, socket}
       def handle_info(_msg, socket), do: {:noreply, socket}
+      def topic(_user_id, _params), do: :default
       def __use_cache__, do: true
 
       # Sentinel — overridden to true by screen_authorize/0 macro when
@@ -152,10 +171,11 @@ defmodule Flare.Screen do
       def __has_custom_authorize__, do: false
 
       defoverridable authorize: 2,
-                    handle_event: 3,
-                    handle_info: 2,
-                    __use_cache__: 0,
-                    __has_custom_authorize__: 0
+                        handle_event: 3,
+                        handle_info: 2,
+                        topic: 2,
+                        __use_cache__: 0,
+                        __has_custom_authorize__: 0
 
       # Register a @before_compile hook on the USING module.
       # At compile time of the screen module, this checks if the developer

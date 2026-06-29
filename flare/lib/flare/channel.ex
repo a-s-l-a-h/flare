@@ -75,12 +75,24 @@ defmodule Flare.Channel do
     # Subscribe to PubSub topics for this user and screen.
     Phoenix.PubSub.subscribe(Flare.PubSub, "user:#{user_id}")
     Phoenix.PubSub.subscribe(Flare.PubSub, "screen:#{user_id}:#{screen_name}")
-    Phoenix.PubSub.subscribe(Flare.PubSub, "broadcast:#{screen_name}")
 
     router = Application.get_env(:flare, :router) ||
       raise "Missing config: config :flare, router: MyApp.FlareRouter"
 
     screen_module = router.screen_for!(screen_name)
+
+    # Resolve and subscribe to this screen's broadcast topic.
+    # Screens that don't override topic/2 fall back to the old
+    # hardcoded "broadcast:#{screen_name}" bucket — fully backward
+    # compatible. Screens that do override it (e.g. for per-instance
+    # scoping like "window:AH7K2P") get their own dedicated topic.
+    broadcast_topic =
+      case screen_module.topic(user_id, params) do
+        :default -> "broadcast:#{screen_name}"
+        custom -> "broadcast:#{custom}"
+      end
+
+    Phoenix.PubSub.subscribe(Flare.PubSub, broadcast_topic)
 
     # ── Authorization gate ─────────────────────────────────────────────────────
     # Runs BEFORE mount, BEFORE state restore, BEFORE any layout is sent.

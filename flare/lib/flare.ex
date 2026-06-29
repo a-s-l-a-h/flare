@@ -109,6 +109,28 @@ defmodule Flare do
     )
   end
 
+  @doc """
+  Broadcasts state changes to every user currently on a screen whose
+  topic/2 callback resolves to this exact topic string. Use this instead
+  of broadcast_to_screen/2 when a screen needs per-instance scoping
+  (e.g. one queue_view screen serving many different window codes).
+
+  ## Example
+
+      # In your screen module:
+      def topic(_user_id, params), do: "window:\#{params["code"]}"
+
+      # Anywhere else in your app:
+      Flare.broadcast_to_topic("window:AH7K2P", %{flare_count: 4})
+  """
+  def broadcast_to_topic(topic, state_changes) when is_map(state_changes) do
+    Phoenix.PubSub.broadcast(
+      Flare.PubSub,
+      "broadcast:#{topic}",
+      {:flare_broadcast, state_changes}
+    )
+  end
+
   # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------
