@@ -168,7 +168,7 @@ mix ecto.migrate
 
 ```
 
-The template ships with a SQLite database (see `config/config.exs` — `adapter: Ecto.Adapters.SQLite3`) and starter migrations for `users` and `identities` (see [Authentication](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#authentication--tokens)). Add your own domain migrations under `priv/repo/migrations/` as you build out your app.
+The template ships with a SQLite database (see `config/config.exs` — `adapter: Ecto.Adapters.SQLite3`) and starter migrations for `users` and `identities` (see [Authentication]). Add your own domain migrations under `priv/repo/migrations/` as you build out your app.
 
 ### Step 6 — Start the server
 
@@ -494,11 +494,11 @@ end
 
 ```
 
-`mount/2` receives `params` — the join params dict the client sent (e.g. `{"code" => "AH7K2P"}` for a screen joined with a dynamic identifier), and `socket` — already populated with `socket.user_id` and any restored `saved_assigns` from `UserState` for this screen (scoped to this screen's own declared `flare_` variable names plus any configured `global_keys` — see [Global Keys](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#global-keys)).
+`mount/2` receives `params` — the join params dict the client sent (e.g. `{"code" => "AH7K2P"}` for a screen joined with a dynamic identifier), and `socket` — already populated with `socket.user_id` and any restored `saved_assigns` from `UserState` for this screen (scoped to this screen's own declared `flare_` variable names plus any configured `global_keys` — see [Global Keys]).
 
 ### `handle_event/3` — reacting to taps and input
 
-Called every time the client fires a `flare://action` (see [Layout JSON](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#layout-json--state-json-files) for how actions are wired in JSON). The `event` string is whatever `flare_action` value the layout's `action.url` query string set; `payload` is a map of any other query params on that same URL, expression-resolved by the client before sending.
+Called every time the client fires a `flare://action` (see [Layout JSON]for how actions are wired in JSON). The `event` string is whatever `flare_action` value the layout's `action.url` query string set; `payload` is a map of any other query params on that same URL, expression-resolved by the client before sending.
 
 ```elixir
 @impl true
@@ -521,7 +521,7 @@ def handle_event("logout", _payload, socket), do: {:noreply, clear_storage(socke
 
 ```
 
-Anything you `assign/2`/`assign/3` inside `handle_event/3` gets automatically diffed against the previous assigns and shipped to the client as a `"patch"` message — you never manually construct or send a patch. See [Diffing](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#the-diff-engine).
+Anything you `assign/2`/`assign/3` inside `handle_event/3` gets automatically diffed against the previous assigns and shipped to the client as a `"patch"` message — you never manually construct or send a patch. See [Diffing].
 
 ### `handle_info/2` — reacting to process messages
 
@@ -566,7 +566,7 @@ end
 
 ```
 
-See [Shared / Multi-User Screens](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#shared--multi-user-screens-topic2-and-presence) for the full mechanics this unlocks (per-instance broadcasting + Presence).
+
 
 ### `use_cache` — ETS caching per screen
 
@@ -579,7 +579,7 @@ end
 
 ```
 
-See the dedicated [ETS Layout Cache](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#the-ets-layout-cache--use_cache) section below for exactly what this controls and when to flip it.
+
 
 ----------
 
@@ -652,7 +652,7 @@ screen "home", MyApp.Home, scaffold: [:bottom_bar]
 
 ```
 
-This is unrelated to access control — it tells the client which persistent scaffold regions should be visible while this particular screen is the active content. See [Scaffold Regions](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#scaffold-regions--the-multi-mount-architecture).
+This is unrelated to access control — it tells the client which persistent scaffold regions should be visible while this particular screen is the active content. 
 
 ----------
 
@@ -675,7 +675,7 @@ Any variable whose name starts with `local_` is understood by convention across 
 
 -   `Flare.Diff.compute/2` explicitly excludes `local_` keys from every diff, so the server literally cannot push a value for a `local_` variable to the client, even if you `assign(socket, :local_x, "y")` by mistake — it's simply invisible to the diffing/patching machinery.
 -   The web and Android clients treat any `local_`-prefixed variable declared in a `state/*.json` file specially: on `"init"`, if that variable **already has a value in the global controller** (i.e. it was set earlier this session, e.g. by a previous screen or restored from `localStorage`), the client **skips re-registering it from the JSON file's default**. This is the exact mechanism that prevents, e.g., `local_dark_mode` from silently resetting to `false` every time a new screen's `state/*.json` (which necessarily declares a default) loads.
--   The reserved variable `local_flare_pending_<action>` (see [Pending-Action Locks](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#pending-action-locks-local_flare_pending_)) is a special case of this same pattern, entirely SDK-managed.
+-   The reserved variable `local_flare_pending_<action>` () is a special case of this same pattern, entirely SDK-managed.
 
 **Rule of thumb:** if a value should ever be "remembered" or shown differently per-device without a server round trip (dark mode toggle, drawer open/closed, an in-progress text input the user hasn't submitted yet), prefix it `local_`. If a value represents something the server knows and the client should merely display, prefix it `flare_`.
 
@@ -850,7 +850,7 @@ Each entry needs a `name`, a `type` (`"string"`, `"integer"`, `"number"`, `"bool
 This file has two consumers:
 
 1.  **The client SDK**, which registers each variable with DivKit's global variable controller before rendering the layout, so every `@{...}` expression in the layout has something to bind to from the very first frame (no flash of unbound/undefined variables).
-2.  **`Flare.Layout.declared_variable_names/2`**, used server-side to scope what a screen's `mount/2` is allowed to restore from `UserState` — see [Global Keys](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#global-keys) above.
+2.  **`Flare.Layout.declared_variable_names/2`**, used server-side to scope what a screen's `mount/2` is allowed to restore from `UserState` —  above.
 
 ### Field types you can bind
 
@@ -906,7 +906,7 @@ end
 Set `use_cache false` **only** when you need to see layout changes take effect without restarting the server — i.e. during active local development of that specific screen's JSON. It only affects that one screen; every other screen in your app still uses ETS normally. `use_cache false` screens:
 
 -   Always read directly from disk on every join, bypassing ETS entirely.
--   Never get gzip-precompressed (see [optimize](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#the-binary-protocol--optimize) — they always send plain JSON, never the binary frame format, regardless of your `optimize` setting).
+-   Never get gzip-precompressed ( — they always send plain JSON, never the binary frame format, regardless of your `optimize` setting).
 
 **Convention used throughout the shipped template and reference app:** screens under active development are `use_cache false`; stable, rarely-changing screens (home, static content, scaffold regions) are left at the `use_cache true` default. Flip screens back to `true` before shipping to production — every disk read avoided is real latency saved under load.
 
@@ -976,7 +976,7 @@ socket |> store_token(Phoenix.Token.sign(MyApp.Endpoint, "user_auth", user_id))
 Tells the client to persist an auth token securely:
 
 -   **Web:** server-side session (never `localStorage`) — actually, per the current web client implementation, it's stored via `localStorage` (`flare_token`) since there's no server-side session concept wired up by default; check `_executeCommand`'s `"store_token"` case if you need to change this for your own security requirements.
--   **iOS:** Keychain (not yet implemented — see [iOS](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#ios-client)).
+-   **iOS:** Keychain (not yet implemented — ).
 -   **Android:** `SharedPreferences` (`PREF_TOKEN` key) via the Flare Android SDK.
 
 ### `clear_storage/1`
@@ -1117,7 +1117,7 @@ end
 
 ## Authorization (`authorize/2` and Router Roles)
 
-Covered in detail above under [Creating a New Screen](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#authorize2--gating-access) and [The Router](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#roles-option) — summarized here for quick reference:
+
 
 Mechanism
 
@@ -1326,7 +1326,7 @@ Flare.push_command_to_user("user_123", "store", "show_alert", %{
 
 ```
 
-Same idea, but pushes a single command (see [Commands](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#commands-server--client-instructions)) instead of a state diff.
+Same idea, but pushes a single command 
 
 ### `Flare.update_layout/2`
 
@@ -1335,7 +1335,7 @@ Flare.update_layout("user_123", "store")
 
 ```
 
-Covered in [ETS Layout Cache](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#hot-layout-updates-without-a-restart) — hot-reloads one user's one screen's layout after a deploy, preserving current variable values.
+Covered in [ETS Layout Cache] — hot-reloads one user's one screen's layout after a deploy, preserving current variable values.
 
 ### `Flare.broadcast_to_screen/2`
 
@@ -1472,7 +1472,7 @@ npm run build       # bundles src/js, copies index.html/app.css/static/ into dis
 
 ```
 
-Output lands in `dist/`, served as static assets by your Phoenix `Endpoint`'s `Plug.Static` (`from: Path.expand("../../../../flare-web-client/dist", __DIR__)` — see [Getting a New Project Up and Running](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#step-3--build-the-web-client) for why this relative path matters).
+Output lands in `dist/`, served as static assets by your Phoenix `Endpoint`'s `Plug.Static` (`from: Path.expand("../../../../flare-web-client/dist", __DIR__)` — see [Getting a New Project Up and Running] . for why this relative path matters).
 
 ----------
 
@@ -1493,7 +1493,7 @@ This document intentionally does not go deeper into Android internals — if you
 
 ## iOS Client
 
-**Not yet implemented.** There is currently no `flare-ios-client/` SDK. If/when you need native iOS support, you would implement a client following the same wire protocol described in [The Binary Protocol](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#the-binary-protocol--optimize) (Phoenix Channels protocol v2 over WebSocket, with the optional gzip binary frame format), and the same conceptual model as the web/Android clients (one Mount per persistent region + one content mount, `local_`/`flare_` variable handling via DivKit's iOS SDK, `flare://action` URL parsing).
+**Not yet implemented.** There is currently no `flare-ios-client/` SDK. If/when you need native iOS support, you would implement a client following the same wire protocol described in [The Binary Protocol]. (Phoenix Channels protocol v2 over WebSocket, with the optional gzip binary frame format), and the same conceptual model as the web/Android clients (one Mount per persistent region + one content mount, `local_`/`flare_` variable handling via DivKit's iOS SDK, `flare://action` URL parsing).
 
 ----------
 
@@ -1583,7 +1583,7 @@ socket "/socket", MyApp.Http.UserSocket,
 
 ```
 
-And wire your `UserSocket` into the endpoint the normal Phoenix way — see [Authentication](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#authentication--tokens) for the full `UserSocket` implementation this depends on.
+And wire your `UserSocket` into the endpoint the normal Phoenix way —  for the full `UserSocket` implementation this depends on.
 
 ----------
 
@@ -1747,7 +1747,7 @@ Standard `Phoenix.Presence` API (`list/1`, `track/4`, etc.) — see Phoenix's ow
 
 **A layout change isn't showing up after I edited the JSON file** — the screen is `use_cache true` (the default) and you haven't restarted the server or called `Flare.update_layout/2`. Either set `use_cache false` temporarily during active development of that screen, restart `mix phx.server`, or call `Flare.Layout.invalidate(screen_name)` / `Flare.update_layout(user_id, screen_name)` from an IEx shell.
 
-**`local_dark_mode` (or another `local_` variable) keeps resetting to its JSON default every time I navigate** — check that the client is actually implementing the "don't clobber an existing `local_` variable's value with the new screen's default" guard on `"init"` (both shipped clients do this out of the box — see the relevant section under [The Web Client](https://claude.ai/chat/594413f3-2e86-417b-b7bd-00ffdf283354#the-web-client)). If you're writing a custom client, this is the one behavior you must replicate exactly, or dark mode/drawer state will visibly flicker/reset on every navigation.
+**`local_dark_mode` (or another `local_` variable) keeps resetting to its JSON default every time I navigate** — check that the client is actually implementing the "don't clobber an existing `local_` variable's value with the new screen's default" guard on `"init"` (both shipped clients do this out of the box — see the relevant section under [The Web Client]). If you're writing a custom client, this is the one behavior you must replicate exactly, or dark mode/drawer state will visibly flicker/reset on every navigation.
 
 **I set a `flare_` variable from the server but it never appears on the client** — confirm the variable is declared in that screen's `state/<screen>.json` (the client needs a type definition to bind an expression to). A value assigned server-side without a matching state-JSON declaration will still be included in diffs/patches, but if it's the very first time the client ever sees that variable name (not present in `state/*.json`), the web/Android clients infer a type from the raw JSON value (boolean/integer/number/string) — arrays and objects specifically are **skipped** if there's no declared type, since inferring a DivKit array/dict variable type from a raw value isn't safely possible. Always declare array/dict-typed `flare_` variables in `state/*.json` explicitly.
 
