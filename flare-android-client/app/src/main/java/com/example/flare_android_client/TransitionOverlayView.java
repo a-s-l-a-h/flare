@@ -42,7 +42,11 @@ public class TransitionOverlayView extends FrameLayout {
     private final View errorCard;
     private final android.widget.TextView tvErrorMessage;
     private final android.widget.Button btnRetry;
-    //private final android.widget.Button btnDismiss;
+    private final android.widget.Button btnSignOut;
+
+    // Fired when the user taps "Sign Out" on the error card. Wired once by
+    // FlareClientActivity via setOnSignOutListener() — same treatment as onRetry.
+    private Runnable onSignOut;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private long showStartMs = 0;
@@ -66,7 +70,8 @@ public class TransitionOverlayView extends FrameLayout {
         errorCard     = findViewById(R.id.card_error);
         tvErrorMessage = findViewById(R.id.tv_transition_error);
         btnRetry      = findViewById(R.id.btn_retry);
-        //btnDismiss    = findViewById(R.id.btn_dismiss);
+        btnSignOut    = findViewById(R.id.btn_sign_out);
+        btnSignOut.setOnClickListener(v -> { if (onSignOut != null) onSignOut.run(); });
 
         // Loop the Lottie animation while visible
         lottieView.setRepeatCount(LottieDrawable.INFINITE);
@@ -84,6 +89,26 @@ public class TransitionOverlayView extends FrameLayout {
      * @param onRetryAction  Runnable to call if user taps "Retry". Pass null to hide retry button.
      */
     public void show(Runnable onRetryAction) {
+        show(onRetryAction, null);
+    }
+
+    /**
+     *  overload that lets the caller take over what happens when the
+     * internal TIMEOUT_MS deadline fires, instead of always showing this
+     * view's own generic "Connection problem" error card.
+     *
+     * @param onTimeoutOverride  If non-null, called INSTEAD of the built-in
+     *                           error card when the timeout elapses. Pass a
+     *                           no-op lambda to suppress the card entirely —
+     *                           e.g. during the very first connect attempt
+     *                           in FlareClientActivity, where a higher-level,
+     *                           blocking "Something went wrong" dialog should
+     *                           own the escalation instead of this transient
+     *                           card flashing first. Pass null to keep the
+     *                           old default behavior (used for every screen
+     *                           after the first successful load).
+     */
+    public void show(Runnable onRetryAction, Runnable onTimeoutOverride) {
         this.onRetry = onRetryAction;
         showStartMs = System.currentTimeMillis();
         visible = true;
@@ -102,8 +127,13 @@ public class TransitionOverlayView extends FrameLayout {
         // Arm timeout
         cancelTimeout();
         timeoutRunnable = () -> {
-            Log.w(TAG, "Transition timeout — showing error popup");
-            showError("Connection problem. Please check your network.", onRetryAction);
+            if (onTimeoutOverride != null) {
+                Log.w(TAG, "Transition timeout — deferring to caller-supplied handler");
+                onTimeoutOverride.run();
+            } else {
+                Log.w(TAG, "Transition timeout — showing error popup");
+                showError("Connection problem. Please check your network.", onRetryAction);
+            }
         };
         handler.postDelayed(timeoutRunnable, TIMEOUT_MS);
 
@@ -170,6 +200,13 @@ public class TransitionOverlayView extends FrameLayout {
 
     public boolean isVisible() {
         return visible;
+    }
+    /**
+     * Registers the callback fired when the user taps "Sign Out" on the
+     * error card. Call once from FlareClientActivity.onCreate().
+     */
+    public void setOnSignOutListener(Runnable onSignOut) {
+        this.onSignOut = onSignOut;
     }
 
     // ── Private ──────────────────────────────────────────────────────────────

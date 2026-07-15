@@ -1,0 +1,60 @@
+{
+  "card": {
+    "log_id": "bottom_bar_screen",
+    "states": [
+      {
+        "state_id": 0,
+        "div": {
+          "type": "container",
+          "orientation": "horizontal",
+          "width": { "type": "match_parent" },
+          "height": { "type": "fixed", "value": 64 },
+          "visibility": "@{flare_bottom_bar_visible ? 'visible' : 'gone'}",
+          "background": [{ "type": "solid", "color": "@{local_dark_mode ? '#1c1c2e' : '#ffffff'}" }],
+          "content_alignment_vertical": "center",
+          "items": [
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "width": { "type": "match_parent" },
+              "weight": 1,
+              "content_alignment_horizontal": "center",
+              "items": [
+                { "type": "text", "text": "🏠", "font_size": 20, "text_alignment_horizontal": "center" },
+                {
+                  "type": "text",
+                  "text": "Home",
+                  "font_size": 11,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "@{flare_active_tab == 'home' ? '#8e44ad' : (local_dark_mode ? '#9090a8' : '#888888')}"
+                }
+              ],
+              "action": { "log_id": "btn_tab_home", "url": "flare://action?flare_action=tab_tap&tab=home" }
+            },
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "width": { "type": "match_parent" },
+              "weight": 1,
+              "content_alignment_horizontal": "center",
+              "items": [
+                { "type": "text", "text": "🔢", "font_size": 20, "text_alignment_horizontal": "center" },
+                {
+                  "type": "text",
+                  "text": "Counter",
+                  "font_size": 11,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "@{flare_active_tab == 'counter' ? '#8e44ad' : (local_dark_mode ? '#9090a8' : '#888888')}"
+                }
+              ],
+              "action": { "log_id": "btn_tab_counter", "url": "flare://action?flare_action=tab_tap&tab=counter" }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "templates": {}
+}

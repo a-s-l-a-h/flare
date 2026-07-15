@@ -99,3 +99,12 @@ Thumbs.db
 package-lock.json
 mix.lock
 yarn.lock
+
+
+
+
+
+
+# Ignore all dist folders
+dist/
+**/dist/

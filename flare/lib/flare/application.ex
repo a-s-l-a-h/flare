@@ -46,18 +46,22 @@ defmodule Flare.Application do
     :ok = Flare.Layout.init_cache()
 
     children = [
-      # Maps user_id strings to their UserState GenServer PID.
-      # Any code can find a user's process with:
-      #   Registry.lookup(Flare.Registry, user_id)
-      {Registry, keys: :unique, name: Flare.Registry},
+          # Maps user_id strings to their UserState GenServer PID.
+          # Any code can find a user's process with:
+          #   Registry.lookup(Flare.Registry, user_id)
+          {Registry, keys: :unique, name: Flare.Registry},
 
-      # Supervises one UserState GenServer per connected user.
-      # one_for_one: a single user crash never affects other users.
-      {DynamicSupervisor, strategy: :one_for_one, name: Flare.UserSupervisor},
+          # Supervises one UserState GenServer per connected user.
+          # one_for_one: a single user crash never affects other users.
+          {DynamicSupervisor, strategy: :one_for_one, name: Flare.UserSupervisor},
 
-      # PubSub for broadcasting global state changes between screens.
-      # Used by UserState and the public Flare.broadcast_to_screen API.
-      {Phoenix.PubSub, name: Flare.PubSub}
+          # PubSub for broadcasting global state changes between screens.
+          # Used by UserState and the public Flare.broadcast_to_screen API.
+          {Phoenix.PubSub, name: Flare.PubSub},
+
+          # Tracks who is currently connected to each "shared screen" topic
+          # (screens that override topic/2). Must start after Flare.PubSub.
+          Flare.Presence
     ]
 
     # Step 2: Start supervisor tree.

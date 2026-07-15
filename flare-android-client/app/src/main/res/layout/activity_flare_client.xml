@@ -1,25 +1,98 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    FlareClientActivity root layout.
-    Stack order (bottom to top):
-      1. fl_container  — DivKit rendered screens live here
-      2. transition_overlay — navigation loading animation + error card
--->
+
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground">
 
-    <!-- DivKit screen container -->
-    <FrameLayout
-        android:id="@+id/fl_container"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-    <!-- Transition overlay — overlaid on top; GONE by default -->
+
+
+
+
+        <FrameLayout
+            android:id="@+id/fl_content"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+
+        <FrameLayout
+            android:id="@+id/fl_bottom_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </LinearLayout>
+
+
     <com.example.flare_android_client.TransitionOverlayView
         android:id="@+id/transition_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
 </FrameLayout>
+
+
+<!--all scaffold areas -->
+<!--<?xml version="1.0" encoding="utf-8"?>-->
+
+<!--<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"-->
+<!--    android:layout_width="match_parent"-->
+<!--    android:layout_height="match_parent"-->
+<!--    android:background="?android:attr/colorBackground">-->
+
+<!--    <LinearLayout-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="match_parent"-->
+<!--        android:orientation="vertical">-->
+
+
+<!--        <FrameLayout-->
+<!--            android:id="@+id/fl_top_bar"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content" />-->
+
+
+<!--        <FrameLayout-->
+<!--            android:id="@+id/fl_content"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="0dp"-->
+<!--            android:layout_weight="1" />-->
+
+
+<!--        <FrameLayout-->
+<!--            android:id="@+id/fl_bottom_bar"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content" />-->
+
+<!--    </LinearLayout>-->
+
+
+<!--    <com.example.flare_android_client.TransitionOverlayView-->
+<!--        android:id="@+id/transition_overlay"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="match_parent" />-->
+
+
+<!--    <FrameLayout-->
+<!--        android:id="@+id/fl_drawer"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="match_parent" />-->
+
+
+<!--    <FrameLayout-->
+<!--        android:id="@+id/fl_end_drawer"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="match_parent" />-->
+
+
+<!--    <FrameLayout-->
+<!--        android:id="@+id/fl_overlay"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="match_parent" />-->
+
+<!--</FrameLayout>-->

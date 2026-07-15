@@ -10,7 +10,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.content.Intent;
-
+import org.json.JSONObject;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -94,9 +94,29 @@ public class MainActivity extends AppCompatActivity {
             // Dynamically extract screen name from URL — this is the ONLY
             // place uri.getPath() should be used.
             String path = uri.getPath();
-            String entryScreen = "welcome"; // Default
+            String entryScreen = "home"; // Default
             if (path != null && path.length() > 1) {
                 entryScreen = path.substring(1); // Removes the "/"
+            }
+
+            // ── Parse query params (e.g. "?code=4ALTWP") into JSON so they
+            // travel with the join, e.g. joining a specific existing room/session.
+            // Previously this was silently dropped — uri.getQuery() was never read.
+            String entryParamsJson = null;
+            String query = uri.getQuery();
+            if (query != null && !query.isEmpty()) {
+                try {
+                    JSONObject params = new JSONObject();
+                    for (String pair : query.split("&")) {
+                        String[] kv = pair.split("=", 2);
+                        if (kv.length == 2) {
+                            params.put(Uri.decode(kv[0]), Uri.decode(kv[1]));
+                        }
+                    }
+                    entryParamsJson = params.toString();
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to parse query params", e);
+                }
             }
 
             // Check for existing token
@@ -104,13 +124,14 @@ public class MainActivity extends AppCompatActivity {
 
             if (storedToken != null) {
                 // Already logged in! Skip directly to Flare.
-                FlareClientActivity.launch(this, wsUrl, entryScreen);
+                FlareClientActivity.launch(this, wsUrl, entryScreen, null, entryParamsJson);
             } else {
                 // Needs to log in. Launch LoginActivity with our URLs.
                 Intent intent = new Intent(this, LoginActivity.class);
                 intent.putExtra("base_http_url", baseHttpUrl);
                 intent.putExtra("ws_url", wsUrl);
                 intent.putExtra("entry_screen", entryScreen);
+                intent.putExtra("entry_params", entryParamsJson); // may be null, that's fine
                 startActivity(intent);
             }
 

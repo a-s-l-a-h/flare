@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" style="height:100%;overflow:hidden;">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Flare Demo</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script defer src="/assets/app.js"></script>
+  <style>
+  /* Exclude inputs from user-select: none so typing works */
+  *:not(input):not(textarea) {
+    touch-action: manipulation !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+  
+  #flare-overlay, #flare-overlay > div,
+  #flare-drawer, #flare-drawer > div,
+  #flare-end_drawer, #flare-end_drawer > div {
+    pointer-events: none;
+  }
+
+  /* 3. Catch clicks ONLY on the actual DivKit contents when they are visible */
+  #flare-overlay > div > div,
+  #flare-drawer > div > div,
+  #flare-end_drawer > div > div {
+    pointer-events: auto;
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#0f0f1a;font-family:sans-serif;height:100%;overflow:hidden;">
+
+  <div id="flare-login" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;">
+    <div style="background:#fff;border-radius:24px;padding:40px 32px;width:100%;max-width:380px;box-shadow:0 4px 32px rgba(0,0,0,0.08);">
+      <div style="font-size:26px;font-weight:bold;color:#1a1a2e;text-align:center;margin-bottom:8px;">🔥 Flare Demo</div>
+      <div id="auth-subtitle" style="font-size:14px;color:#888;text-align:center;margin-bottom:32px;">Sign in to continue</div>
+
+      <div id="login-error" style="display:none;background:#fdecea;color:#c0392b;border-radius:10px;padding:12px 16px;font-size:14px;margin-bottom:16px;text-align:center;"></div>
+
+      <!-- Registration Fields (Hidden by default) -->
+      <div id="register-fields" style="display:none;">
+        <input id="reg-first" type="text" placeholder="First Name" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;margin-bottom:12px;box-sizing:border-box;" />
+        <input id="reg-last" type="text" placeholder="Last Name" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;margin-bottom:12px;box-sizing:border-box;" />
+        <input id="reg-confirm" type="password" placeholder="Confirm Password" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;margin-bottom:12px;box-sizing:border-box;" />
+      </div>
+
+      <!-- Shared Fields -->
+      <input id="login-email" type="email" placeholder="Email" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;background:#f7f7f7;margin-bottom:12px;box-sizing:border-box;" />
+      <input id="login-password" type="password" placeholder="Password" style="display:block;width:100%;padding:14px 16px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;background:#f7f7f7;margin-bottom:12px;box-sizing:border-box;" />
+
+      <button id="btn-submit" style="display:block;width:100%;padding:16px;border:none;border-radius:14px;font-size:16px;font-weight:bold;cursor:pointer;margin-bottom:16px;background:#8e44ad;color:#fff;">
+        Sign In
+      </button>
+
+      <div style="text-align:center;font-size:14px;color:#888;">
+        <span id="toggle-text">Need an account?</span> 
+        <a id="btn-toggle-mode" href="#" style="color:#8e44ad;font-weight:bold;text-decoration:none;">Sign Up</a>
+      </div>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;margin:24px 0;color:#ccc;font-size:13px;gap:8px;">
+        <div style="flex:1;height:1px;background:#e0e0e0;"></div><span>or</span><div style="flex:1;height:1px;background:#e0e0e0;"></div>
+      </div>
+
+      <button id="btn-guest" style="display:block;width:100%;padding:10px;border:none;border-radius:14px;font-size:14px;cursor:pointer;background:transparent;color:#888;">
+        Continue as Guest →
+      </button>
+
+    </div>
+  </div>
+
+  <div id="flare-app" style="width:100%;height:100vh;overflow:hidden;position:fixed;top:0;left:0;display:none;flex-direction:column;">
+    <div id="flare-top_bar" style="flex-shrink:0;"></div>
+    <div id="flare-root" style="flex:1;min-height:0;overflow:hidden;position:relative;"></div>
+    <div id="flare-bottom_bar" style="flex-shrink:0;"></div>
+  </div>
+
+  <!-- Transition overlay — Lottie animation shown during content navigation.
+       Old screen stays visible underneath (mirrors Android TransitionOverlayView). -->
+  <div id="flare-transition-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:800;align-items:center;justify-content:center;">
+    <div id="flare-transition-lottie" style="width:72px;height:72px;"></div>
+    <div id="flare-transition-error" style="display:none;background:#fff;border-radius:16px;padding:24px;max-width:320px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.15);">
+      <div id="flare-transition-error-msg" style="font-size:14px;color:#333;margin-bottom:16px;"></div>
+      <button id="flare-transition-retry" style="padding:10px 20px;border:none;border-radius:10px;background:#8e44ad;color:#fff;font-weight:bold;cursor:pointer;">Retry</button>
+      <div>
+        <button id="flare-transition-reset" style="margin-top:12px;padding:6px 10px;border:none;background:transparent;color:#999;font-size:12px;text-decoration:underline;cursor:pointer;">Sign out &amp; reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Off-canvas overlays. Same pointer-events pattern as #flare-overlay: the
+       wrapper is click-through, only the actual rendered DivKit content
+       (once visible) catches taps. Each region's own layout JSON controls
+       its own internal visibility/animation (e.g. "@{flare_drawer_open ? ...}"). -->
+  <div id="flare-drawer" style="pointer-events:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:900;overflow:hidden;"></div>
+  <div id="flare-end_drawer" style="pointer-events:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:900;overflow:hidden;"></div>
+
+  <div id="flare-overlay" style="pointer-events:none; position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;overflow:hidden;"></div>
+
+  <!-- Note: added pointer-events:none here inline just to be safe -->
+  <!-- <div id="flare-overlay" style="pointer-events:none; position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;overflow:hidden;"></div> -->
+<!-- all 6 scaffold  -->
+  <!-- <script>
+    window.__flare__ = {
+      wsUrl: "/socket",
+      token: null,
+      entryScreen: "home",
+      persistentScreens: [
+        { screen: "bottom_bar", region: "bottom_bar" },
+        { screen: "overlay",     region: "overlay" },
+        { screen: "top_bar",    region: "top_bar" },
+        { screen: "drawer",     region: "drawer" },
+        { screen: "end_drawer", region: "end_drawer" }
+      ],
+      scaffoldRegions: ["bottom_bar", "top_bar", "drawer", "end_drawer"]
+    };
+  </script> -->
+
+  <!-- this only 2 region   -->
+   <script>
+  window.__flare__ = {
+    wsUrl: "/socket",
+    token: null,
+    entryScreen: "home",
+    persistentScreens: [
+      { screen: "bottom_bar", region: "bottom_bar" }
+    ],
+    scaffoldRegions: ["bottom_bar"]
+  };
+</script>
+
+  <script>
+    (function () {
+      let isRegisterMode = false;
+      
+      const LOGIN_DIV = document.getElementById("flare-login");
+      const ROOT_DIV  = document.getElementById("flare-app");
+      const ERROR_DIV = document.getElementById("login-error");
+
+      function showApp() { 
+        LOGIN_DIV.style.display = "none"; 
+        ROOT_DIV.style.display = "flex"; 
+        
+        // Reset buttons to their default state so they are ready if the user logs out
+        const submitBtn = document.getElementById("btn-submit");
+        submitBtn.disabled = false;
+        submitBtn.textContent = isRegisterMode ? "Create Account" : "Sign In";
+        
+        const guestBtn = document.getElementById("btn-guest");
+        guestBtn.disabled = false;
+        guestBtn.textContent = "Continue as Guest →";
+      }
+      function showError(msg) { ERROR_DIV.textContent = msg; ERROR_DIV.style.display = "block"; }
+      function clearError() { ERROR_DIV.style.display = "none"; ERROR_DIV.textContent = ""; }
+
+      // ── Toggle Login / Register ──────────────────────────────────────────
+      document.getElementById("btn-toggle-mode").addEventListener("click", (e) => {
+        e.preventDefault();
+        isRegisterMode = !isRegisterMode;
+        clearError();
+        
+        document.getElementById("register-fields").style.display = isRegisterMode ? "block" : "none";
+        document.getElementById("btn-submit").textContent = isRegisterMode ? "Create Account" : "Sign In";
+        document.getElementById("auth-subtitle").textContent = isRegisterMode ? "Create a new account" : "Sign in to continue";
+        document.getElementById("toggle-text").textContent = isRegisterMode ? "Already have an account?" : "Need an account?";
+        document.getElementById("btn-toggle-mode").textContent = isRegisterMode ? "Sign In" : "Sign Up";
+      });
+
+      async function postJson(url, body) {
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Request failed");
+        return json;
+      }
+
+      function startFlare(token) {
+        if (token) { localStorage.setItem("flare_token", token); window.__flare__.token = token; }
+        showApp();
+        if (typeof window.__flare_start__ === "function") window.__flare_start__();
+        else window.__flare__.autoStart = true;
+      }
+
+      if (localStorage.getItem("flare_token")) {
+        startFlare(localStorage.getItem("flare_token"));
+      } else {
+        LOGIN_DIV.style.display = "flex";
+      }
+
+      // ── Submit Button ────────────────────────────────────────────────────
+      document.getElementById("btn-submit").addEventListener("click", async () => {
+        clearError();
+        const email = document.getElementById("login-email").value.trim();
+        const password = document.getElementById("login-password").value;
+        const btn = document.getElementById("btn-submit");
+
+        if (!email || !password) return showError("Email and password are required.");
+
+        if (isRegisterMode) {
+          const first = document.getElementById("reg-first").value.trim();
+          const last = document.getElementById("reg-last").value.trim();
+          const confirm = document.getElementById("reg-confirm").value;
+
+          if (password !== confirm) return showError("Passwords do not match!");
+          if (!first) return showError("First name is required!");
+
+          btn.disabled = true; btn.textContent = "Creating...";
+          try {
+            const { token } = await postJson("/auth/register", { email, password, first_name: first, last_name: last });
+            startFlare(token);
+          } catch (e) { showError(e.message); btn.disabled = false; btn.textContent = "Create Account"; }
+        } else {
+          btn.disabled = true; btn.textContent = "Signing In...";
+          try {
+            const { token } = await postJson("/auth/login", { email, password });
+            startFlare(token);
+          } catch (e) { showError(e.message); btn.disabled = false; btn.textContent = "Sign In"; }
+        }
+      });
+
+      document.getElementById("btn-guest").addEventListener("click", async () => {
+        const btn = document.getElementById("btn-guest");
+        btn.disabled = true;
+        btn.textContent = "Connecting...";
+        try { 
+          const { token } = await postJson("/auth/guest", {}); 
+          startFlare(token); 
+        } catch(e) {
+          btn.disabled = false;
+          btn.textContent = "Continue as Guest →";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

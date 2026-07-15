@@ -107,6 +107,32 @@ defmodule Flare.Commands do
     add_command(socket, "haptic", %{"style" => to_string(style)})
   end
 
+  @doc """
+      Runtime override — hides one scaffold region (`:bottom_bar`, `:top_bar`,
+      `:drawer`, `:end_drawer`) without changing the screen's declared default
+      in the router. Useful for transient states, e.g. hiding the bottom bar
+      while a full-screen modal-like flow is active.
+
+      ## Example
+
+          socket |> hide_scaffold(:bottom_bar)
+      """
+      def hide_scaffold(socket, region) do
+        add_command(socket, "hide_scaffold", %{"region" => to_string(region)})
+      end
+
+      @doc """
+      Runtime override — re-shows a scaffold region previously hidden with
+      `hide_scaffold/2`.
+
+      ## Example
+
+          socket |> show_scaffold(:bottom_bar)
+      """
+      def show_scaffold(socket, region) do
+        add_command(socket, "show_scaffold", %{"region" => to_string(region)})
+      end
+
   # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------

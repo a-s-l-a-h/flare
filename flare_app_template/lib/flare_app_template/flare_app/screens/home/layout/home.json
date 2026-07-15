@@ -1,0 +1,102 @@
+{
+  "card": {
+    "log_id": "home_screen",
+    "states": [
+      {
+        "state_id": 0,
+        "div": {
+          "type": "container",
+          "orientation": "vertical",
+          "width": { "type": "match_parent" },
+          "height": { "type": "match_parent" },
+          "background": [{ "type": "solid", "color": "@{local_dark_mode ? '#0f0f1a' : '#f0f2f8'}" }],
+          "items": [
+            {
+              "type": "container",
+              "orientation": "horizontal",
+              "paddings": { "top": 56, "bottom": 12, "left": 20, "right": 20 },
+              "content_alignment_vertical": "center",
+              "items": [
+                {
+                  "type": "text",
+                  "text": "Flare Template",
+                  "font_size": 22,
+                  "font_weight": "bold",
+                  "text_color": "@{local_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                  "width": { "type": "match_parent" },
+                  "weight": 1
+                },
+                {
+                  "type": "container",
+                  "width": { "type": "fixed", "value": 40 },
+                  "height": { "type": "fixed", "value": 40 },
+                  "background": [{ "type": "solid", "color": "@{local_dark_mode ? '#1c1c2e' : '#ffffff'}" }],
+                  "border": { "corner_radius": 20 },
+                  "content_alignment_horizontal": "center",
+                  "content_alignment_vertical": "center",
+                  "margins": { "right": 8 },
+                  "items": [
+                    { "type": "text", "text": "@{local_dark_mode ? '☀️' : '🌙'}", "font_size": 16, "text_alignment_horizontal": "center" }
+                  ],
+                  "action": { "log_id": "btn_theme", "url": "flare://action?flare_action=toggle_dark_mode" }
+                },
+                {
+                  "type": "container",
+                  "width": { "type": "fixed", "value": 40 },
+                  "height": { "type": "fixed", "value": 40 },
+                  "background": [{ "type": "solid", "color": "@{local_dark_mode ? '#1c1c2e' : '#ffffff'}" }],
+                  "border": { "corner_radius": 20 },
+                  "content_alignment_horizontal": "center",
+                  "content_alignment_vertical": "center",
+                  "items": [
+                    { "type": "text", "text": "🚪", "font_size": 16, "text_alignment_horizontal": "center" }
+                  ],
+                  "action": { "log_id": "btn_logout", "url": "flare://action?flare_action=logout" }
+                }
+              ]
+            },
+            {
+              "type": "container",
+              "orientation": "vertical",
+              "width": { "type": "match_parent" },
+              "paddings": { "left": 24, "right": 24, "top": 40 },
+              "content_alignment_horizontal": "center",
+              "items": [
+                {
+                  "type": "text",
+                  "text": "@{flare_greeting}",
+                  "font_size": 20,
+                  "font_weight": "bold",
+                  "text_color": "@{local_dark_mode ? '#f0f0f5' : '#1a1a2e'}",
+                  "text_alignment_horizontal": "center",
+                  "margins": { "bottom": 12 }
+                },
+                {
+                  "type": "text",
+                  "text": "This template has two screens: this welcome page, and a simple counter that saves its value to the database.",
+                  "font_size": 14,
+                  "text_color": "@{local_dark_mode ? '#9090a8' : '#888888'}",
+                  "text_alignment_horizontal": "center",
+                  "margins": { "bottom": 32 }
+                },
+                {
+                  "type": "text",
+                  "text": "Go to Counter →",
+                  "font_size": 15,
+                  "font_weight": "bold",
+                  "text_alignment_horizontal": "center",
+                  "text_color": "#ffffff",
+                  "background": [{ "type": "solid", "color": "#8e44ad" }],
+                  "border": { "corner_radius": 14 },
+                  "paddings": { "top": 14, "bottom": 14, "left": 28, "right": 28 },
+                  "action": { "log_id": "btn_go_counter", "url": "flare://action?flare_action=go_to_counter" }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "templates": {}
+}

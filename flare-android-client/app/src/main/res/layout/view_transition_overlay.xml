@@ -9,7 +9,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#CC000000">
+    android:background="#00000000">
 
     <!-- Lottie transition animation — shown while loading -->
     <com.airbnb.lottie.LottieAnimationView
@@ -56,6 +56,16 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:text="Retry"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:backgroundTint="#3498DB"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btn_sign_out"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="signout"
             android:textSize="15sp"
             android:textStyle="bold"
             android:backgroundTint="#3498DB"

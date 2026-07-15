@@ -31,6 +31,7 @@ public class LoginActivity extends AppCompatActivity {
     private String baseHttpUrl;
     private String wsUrl;
     private String entryScreen;
+    private String entryParamsJson;
 
     private EditText etEmail, etPassword;
     private Button btnLogin, btnGuest;
@@ -47,6 +48,7 @@ public class LoginActivity extends AppCompatActivity {
         baseHttpUrl = getIntent().getStringExtra("base_http_url");
         wsUrl = getIntent().getStringExtra("ws_url");
         entryScreen = getIntent().getStringExtra("entry_screen");
+        entryParamsJson = getIntent().getStringExtra("entry_params");
 
         etEmail = findViewById(R.id.et_email);
         etPassword = findViewById(R.id.et_password);
@@ -116,7 +118,7 @@ public class LoginActivity extends AppCompatActivity {
                             String token = json.optString("token");
                             if (!TextUtils.isEmpty(token)) {
                                 // Success! Pass token to FlareClientActivity
-                                FlareClientActivity.launch(LoginActivity.this, wsUrl, entryScreen, token);
+                                FlareClientActivity.launch(LoginActivity.this, wsUrl, entryScreen, token, entryParamsJson);
                                 finish(); // Close LoginActivity
                             } else {
                                 showError("Server returned empty token");

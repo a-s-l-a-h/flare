@@ -1,0 +1,6 @@
+{
+  "variables": [
+    { "name": "flare_count", "type": "integer", "value": 0 },
+    { "name": "flare_last_updated", "type": "string", "value": "" }
+  ]
+}

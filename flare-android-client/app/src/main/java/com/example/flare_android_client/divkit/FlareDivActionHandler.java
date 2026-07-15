@@ -24,21 +24,33 @@ import java.util.Map;
  *  Intercepts all DivKit actions with the scheme "flare://action"
  *  and routes them to FlareClientActivity via FlareActionCallback.
  *
- *  WHY WE NEED REFLECTION FOR PAYLOAD RESOLUTION:
+ *  PRIMARY PATH — url query params (no reflection needed):
  *  ─────────────────────────────────────────────
- *  DivKit's ExpressionResolver (passed to handleAction) resolves
- *  layout-bound expressions in view properties — NOT arbitrary
- *  @{varName} strings sitting inside action.payload (a raw JSONObject).
+ *  action.url is schema-typed as an expression-resolvable string on
+ *  every DivKit platform. By the time handleAction() runs below,
+ *  `action.url.evaluate(resolver)` has already resolved every @{...}
+ *  inside it — including encodeUri()/function calls and item_builder
+ *  loop scope — into a real android.net.Uri. Reading params back out
+ *  is then just Uri.getQueryParameter(key), which also auto
+ *  percent-decodes. No reflection, no variable lookups, nothing that
+ *  can silently break on a DivKit internal-structure change.
  *
- *  The payload is opaque JSON. DivKit does not auto-resolve expressions
- *  inside it. This means form values like:
- *      "first_name": "@{local_first_name}"
- *  arrive as the literal string "@{local_first_name}", not the value.
+ *  This is why new screens should write actions as:
+ *      "url": "flare://action?flare_action=save&name=@{encodeUri(local_name)}"
+ *  rather than putting dynamic values inside "payload".
  *
- *  To resolve them we must read the variable value ourselves from
- *  DivVariableController. DivKit Kotlin hides its internal variables
- *  map from Java (no public get(name) API in the version we use), so
- *  we use a 3-tier fallback strategy:
+ *  LEGACY PATH — payload resolution via reflection (fallback only):
+ *  ─────────────────────────────────────────────
+ *  payload is schema-typed as a raw, opaque JSONObject — DivKit never
+ *  resolves @{...} strings inside it on any platform. Older screen
+ *  JSON that hasn't been migrated to the url-param form yet still
+ *  puts dynamic values there, e.g. "first_name": "@{local_first_name}",
+ *  arriving as that literal string rather than the resolved value.
+ *
+ *  For those screens only, we resolve @{varName} ourselves by reading
+ *  DivVariableController directly. DivKit Kotlin hides its internal
+ *  variables map from Java (no public get(name) API in the version we
+ *  use), so we use a 3-tier fallback strategy:
  *
  *    Tier 1 — Kotlin getter method (getVariables / get):
  *             Works if DivKit exposes a public accessor. Fastest, no
@@ -56,6 +68,12 @@ import java.util.Map;
  *  If all three fail, we return "" and log a warning — the server
  *  receives an empty string for that field, which is safe (the Elixir
  *  side trims and validates input anyway).
+ *
+ *  On key collisions between the two paths, url params win — that's
+ *  the field DivKit actually contracts to resolve. Once every screen
+ *  JSON is migrated to url-param form, this whole legacy tier (and
+ *  the resolvePayload/tryKotlinAccessor/tryReflectedMap methods below)
+ *  can be deleted.
  * ═══════════════════════════════════════════════════════════════════
  */
 public class FlareDivActionHandler extends DivActionHandler {
@@ -69,10 +87,18 @@ public class FlareDivActionHandler extends DivActionHandler {
         /**
          * Called when a flare://action is tapped.
          *
+         * MULTI-MOUNT UPDATE: now also passes the DivViewFacade that triggered
+         * the action. FlareClientActivity uses this to figure out which Mount
+         * (content / bottom_bar / top_bar / drawer / end_drawer / overlay) owns
+         * the tap, so the event gets pushed on the CORRECT Phoenix channel and
+         * the CORRECT mount's pending-action set is used — a tap in flight on
+         * the bottom bar must never block a tap on the main content screen.
+         *
          * @param actionType  the value of "flare_action" in the payload
          * @param payload     the full resolved payload JSONObject
+         * @param view        the DivViewFacade (rendered Div2View) that fired this action
          */
-        void onAction(String actionType, JSONObject payload);
+        void onAction(String actionType, JSONObject payload, DivViewFacade view);
     }
 
     private final FlareActionCallback      callback;
@@ -105,20 +131,32 @@ public class FlareDivActionHandler extends DivActionHandler {
                 && HOST_ACTION.equals(url.getHost())) {
 
             try {
+                // PRIMARY: pull params straight out of the resolved url. This
+                // Uri is already fully expression-resolved by DivKit (see
+                // action.url.evaluate(resolver) above) — Uri.getQueryParameter()
+                // also auto percent-decodes, so zero manual resolution needed.
+                JSONObject urlParams = parseFlareActionUrl(url);
+
+                // LEGACY: still resolved via reflection for any screen JSON
+                // that hasn't been migrated to the url-param form yet.
                 JSONObject rawPayload =
                         (action.payload != null) ? action.payload : new JSONObject();
-
-                // Resolve @{varName} expressions inside the payload JSON
                 JSONObject resolvedPayload = resolvePayload(rawPayload);
 
-                String actionType = resolvedPayload.optString("flare_action");
+                // url wins on key collisions — it's the field DivKit actually
+                // contracts to resolve, so treat it as the source of truth.
+                JSONObject payload = mergeJson(resolvedPayload, urlParams);
+
+                String actionType = payload.optString("flare_action");
 
                 if (actionType.isEmpty()) {
-                    Log.w(TAG, "Action payload missing 'flare_action' key — ignoring tap.");
+                    Log.w(TAG, "Action missing 'flare_action' key — ignoring tap.");
                     return true;
                 }
 
-                callback.onAction(actionType, resolvedPayload);
+                // MULTI-MOUNT: pass `view` through so the Activity can identify
+                // which Mount this tap belongs to (see FlareActionCallback above).
+                callback.onAction(actionType, payload, view);
 
             } catch (Exception e) {
                 Log.e(TAG, "Failed to handle DivKit action payload", e);
@@ -129,6 +167,44 @@ public class FlareDivActionHandler extends DivActionHandler {
 
         // Not a Flare action — let DivKit handle it normally (e.g. div-action://...)
         return super.handleAction(action, view, resolver);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  url query-param parsing (primary path)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Extracts query params from an already-resolved "flare://action?..."
+     * Uri. `url` was produced by action.url.evaluate(resolver) in
+     * handleAction() above, so every @{...} inside it — including
+     * encodeUri()/function calls and item_builder loop scope — is already
+     * resolved. Uri.getQueryParameter() also auto percent-decodes, so this
+     * needs no reflection and no manual expression handling at all.
+     */
+    private JSONObject parseFlareActionUrl(Uri url) throws Exception {
+        JSONObject params = new JSONObject();
+        for (String key : url.getQueryParameterNames()) {
+            String value = url.getQueryParameter(key);
+            if (value != null) {
+                params.put(key, value);
+            }
+        }
+        return params;
+    }
+
+    /**
+     * Merges two JSONObjects, with values from `override` taking priority
+     * over `base` on key collisions. Used to let url params (fully resolved,
+     * trusted) win over legacy reflected payload values on the same key.
+     */
+    private JSONObject mergeJson(JSONObject base, JSONObject override) throws Exception {
+        JSONObject merged = new JSONObject(base.toString());
+        Iterator<String> keys = override.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            merged.put(key, override.get(key));
+        }
+        return merged;
     }
 
     // ═══════════════════════════════════════════════════════════════════════

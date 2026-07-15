@@ -1,0 +1,14 @@
+{
+  "name": "flare-web-client",
+  "scripts": {
+    "build": "esbuild src/js/app.js --bundle --outdir=dist/assets --target=es2017 && node scripts/copy-files.js"
+  },
+  "dependencies": {
+    "@divkitframework/divkit": "32.52.0",
+    "lottie-web": "5.13.0",
+    "phoenix": "1.8.7"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  }
+}

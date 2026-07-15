@@ -79,20 +79,7 @@ defmodule Flare.Layout do
     :ok
   end
 
-  @doc """
-  Eager-loads layout and state JSON for all screens that have use_cache true.
 
-  Called by Flare.Application after the supervisor tree starts, using the
-  list from `router.registered_screens()`. Each screen's module is checked
-  for `use_cache true` — if so, files are read from disk and inserted into
-  ETS immediately.
-
-  Screens with `use_cache false` are skipped here; they always read from
-  disk at join time.
-
-  Any file read error at startup raises immediately with a clear message
-  so the developer knows before any user connects — not at the first join.
-  """
   @doc """
 Eager-loads layout and state JSON for all screens that have use_cache true.
 
@@ -155,8 +142,8 @@ so the developer knows before any user connects — not at the first join.
   # ---------------------------------------------------------------------------
 
   @doc false
-  def build_init_envelope(screen_module, screen_name, assigns) do
-    Flare.Logger.info(__MODULE__, "Building INIT for: #{screen_name}")
+      def build_init_envelope(screen_module, screen_name, assigns, scaffold \\ nil) do
+        Flare.Logger.info(__MODULE__, "Building INIT for: #{screen_name}")
 
     # IMPORTANT: assigns is this user's own runtime state from their
     # UserState GenServer. It is NEVER stored in ETS. We only read
@@ -177,14 +164,24 @@ so the developer knows before any user connects — not at the first join.
     entry = load_files(screen_module, screen_name)
 
     base = %{
-      "screen" => screen_name,
-      "state"  => stringify_keys(assigns)
-    }
+          "screen" => screen_name,
+          "state"  => stringify_keys(assigns)
+        }
 
-    base
-    |> put_layout_field(entry)
-    |> put_variables_field(entry)
-  end
+        # Only add "scaffold" if the screen actually declared one in the router.
+        # Absence (nil) means the client leaves current region visibility as-is —
+        # this keeps every screen that hasn't opted in behaving exactly as before.
+        base =
+          if scaffold do
+            Map.put(base, "scaffold", Enum.map(scaffold, &to_string/1))
+          else
+            base
+          end
+
+        base
+        |> put_layout_field(entry)
+        |> put_variables_field(entry)
+      end
 
   @doc false
   def build_patch_envelope(screen_name, diff) do
@@ -194,6 +191,24 @@ so the developer knows before any user connects — not at the first join.
       "state"  => stringify_keys(diff)
     }
   end
+
+  @doc """
+Returns the atom names of variables this screen declares in its state/<screen>.json.
+Used by Flare.Channel to scope what UserState.get_all/1 restores on join, so a
+screen never receives another screen's leaked keys (e.g. lists/maps that were
+never meant for it).
+"""
+def declared_variable_names(screen_module, screen_name) do
+  entry = load_files(screen_module, screen_name)
+
+  variables =
+    case entry do
+      {:plain, _layout, state_json} -> state_json["variables"] || []
+      {:optimized, _layout_gz, _vars_gz, state_json} -> state_json["variables"] || []
+    end
+
+  Enum.map(variables, fn %{"name" => name} -> String.to_atom(name) end)
+end
 
   @doc false
   def build_patch_with_commands_envelope(screen_name, diff, commands) do

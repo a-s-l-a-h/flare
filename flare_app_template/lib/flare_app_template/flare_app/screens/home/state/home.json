@@ -1,0 +1,5 @@
+{
+  "variables": [
+    { "name": "flare_greeting", "type": "string", "value": "" }
+  ]
+}

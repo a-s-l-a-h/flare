@@ -47,7 +47,7 @@ dependencies {
     // ── LOTTIE (Transition animations) ──
     implementation 'com.airbnb.android:lottie:6.4.0'
     // ── DIVKIT (Server-Driven UI) ──
-    def divkit_version = "30.15.0"
+    def divkit_version = "32.52.0"
     implementation "com.yandex.div:div:$divkit_version"
     implementation "com.yandex.div:div-core:$divkit_version"
     implementation "com.yandex.div:div-json:$divkit_version"

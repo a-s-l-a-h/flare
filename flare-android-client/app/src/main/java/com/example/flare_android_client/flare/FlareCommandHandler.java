@@ -1,38 +1,43 @@
+// Location: app/src/main/java/com/example/flare_android_client/flare/FlareCommandHandler.java
 package com.example.flare_android_client.flare;
 
 import android.app.AlertDialog;
-import android.content.Context;
 import android.util.Log;
+
+import com.example.flare_android_client.FlareClientActivity;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
 /**
- * ═══════════════════════════════════════════════════════════════
- * Executes imperative commands sent from the Server.
- *
- * The server maps `Flare.Commands.show_alert(...)` into a JSON
- * block. This class interprets that block and executes it.
- * ═══════════════════════════════════════════════════════════════
+ * Executes the "commands" array sent by the server inside init/patch envelopes.
  */
-public class FlareCommandHandler {
+public final class FlareCommandHandler {
 
-    private static final String TAG = "FlareCommands";
+    private static final String TAG = "FlareCommandHandler";
 
-    // Callbacks to trigger actions inside FlareClientActivity
-    public interface NavigateCallback { void onNavigate(String screen, JSONObject params); }
-    public interface TokenCallback { void onStoreToken(String token); }
-    public interface SimpleCallback { void onAction(); }
-    public interface HapticCallback { void onHaptic(String style); }
+    private FlareCommandHandler() {} // static-only class
 
-    public static void execute(JSONObject patchEnvelope,
-                               Context context,
-                               NavigateCallback navCb,
-                               TokenCallback storeCb,
-                               SimpleCallback clearCb,
-                               HapticCallback hapticCb) {
-
-        JSONArray commands = patchEnvelope.optJSONArray("commands");
+    /**
+     * @param envelope             the full "init" or "patch" envelope JSON
+     * @param activity             the Activity, used for scaffold commands and haptics
+     * @param navigateCallback     (screen, params) callback
+     * @param storeTokenCallback   Consumer<String> — receives the token to persist
+     * @param clearStorageCallback Runnable — logout / clear-storage
+     * @param hapticCallback       Consumer<String> — haptic style string
+     */
+    public static void execute(
+            JSONObject envelope,
+            FlareClientActivity activity,
+            BiConsumer<String, JSONObject> navigateCallback,
+            Consumer<String> storeTokenCallback,
+            Runnable clearStorageCallback,
+            Consumer<String> hapticCallback
+    ) {
+        JSONArray commands = envelope.optJSONArray("commands");
         if (commands == null) return;
 
         for (int i = 0; i < commands.length(); i++) {
@@ -40,45 +45,69 @@ public class FlareCommandHandler {
             if (cmd == null) continue;
 
             String type = cmd.optString("type");
-            JSONObject payload = cmd.optJSONObject("payload");
-            if (payload == null) payload = new JSONObject();
+            JSONObject cmdPayload = cmd.optJSONObject("payload");
+            if (cmdPayload == null) cmdPayload = new JSONObject();
 
-            Log.d(TAG, "Executing command: " + type);
+            Log.d(TAG, "Executing command: " + type + " payload=" + cmdPayload);
 
             switch (type) {
-                case "navigate":
-                    String screen = payload.optString("screen");
-                    JSONObject params = payload.optJSONObject("params");
-                    navCb.onNavigate(screen, params);
+
+                case "navigate": {
+                    String screen = cmdPayload.optString("screen", null);
+                    JSONObject params = cmdPayload.optJSONObject("params");
+                    if (screen != null) {
+                        navigateCallback.accept(screen, params);
+                    } else {
+                        Log.w(TAG, "navigate command missing 'screen' — ignoring");
+                    }
                     break;
+                }
 
-                case "show_alert":
-                    String title = payload.optString("title", "Alert");
-                    String msg = payload.optString("message", "");
-                    String btn = payload.optString("button", "OK");
-
-                    new AlertDialog.Builder(context)
+                case "show_alert": {
+                    String title   = cmdPayload.optString("title", "");
+                    String message = cmdPayload.optString("message", "");
+                    new AlertDialog.Builder(activity)
                             .setTitle(title)
-                            .setMessage(msg)
-                            .setPositiveButton(btn, null)
+                            .setMessage(message)
+                            .setPositiveButton(cmdPayload.optString("button", "OK"), null)
                             .show();
                     break;
+                }
 
-                case "store_token":
-                    storeCb.onStoreToken(payload.optString("token"));
+                case "store_token": {
+                    String token = cmdPayload.optString("token", null);
+                    if (token != null) storeTokenCallback.accept(token);
                     break;
+                }
 
-                case "clear_storage":
-                    clearCb.onAction();
+                case "clear_storage": {
+                    clearStorageCallback.run();
                     break;
+                }
 
-                case "haptic":
-                    hapticCb.onHaptic(payload.optString("style", "success"));
+                case "haptic": {
+                    hapticCallback.accept(cmdPayload.optString("style", "success"));
                     break;
+                }
+
+                case "hide_scaffold": {
+                    String region = cmdPayload.optString("region", null);
+                    if (region != null) {
+                        activity.hideScaffold(region);
+                    }
+                    break;
+                }
+
+                case "show_scaffold": {
+                    String region = cmdPayload.optString("region", null);
+                    if (region != null) {
+                        activity.showScaffold(region);
+                    }
+                    break;
+                }
 
                 default:
-                    Log.w(TAG, "Unknown server command received: " + type);
-                    break;
+                    Log.w(TAG, "Unknown command type: " + type);
             }
         }
     }

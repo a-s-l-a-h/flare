@@ -1,0 +1,5 @@
+{
+  "variables": [
+  { "name": "local_dark_mode", "type": "boolean", "value": false }
+]
+}

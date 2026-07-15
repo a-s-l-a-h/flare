@@ -104,10 +104,10 @@ defmodule Flare.Channel do
     #   3. No restriction                       → :ok, open to all
     # ─────────────────────────────────────────────────────────────────────────
     case check_authorization(screen_module, screen_name, user_id, params, router) do
-      :ok ->
-        do_mount(screen_name, params, channel_socket, user_id, screen_module)
+          :ok ->
+            do_mount(screen_name, params, channel_socket, user_id, screen_module, router)
 
-      {:error, reason} ->
+          {:error, reason} ->
         Flare.Logger.error(
           __MODULE__,
           "Unauthorized join rejected | screen: #{screen_name} | user: #{user_id} | reason: #{inspect(reason)}"
@@ -120,14 +120,38 @@ defmodule Flare.Channel do
   # do_mount — runs only after authorization passes
   # ---------------------------------------------------------------------------
 
-  defp do_mount(screen_name, params, channel_socket, user_id, screen_module) do
-    # Restore this user's own runtime state from their UserState GenServer.
-    # This is completely separate from the ETS layout cache.
-    # User state is never shared between users, never stored in ETS.
-    saved_assigns = Flare.UserState.get_all(user_id)
-    Flare.Logger.info(__MODULE__, "Restored assigns for #{user_id}: #{inspect(Map.keys(saved_assigns))}")
+  defp do_mount(screen_name, params, channel_socket, user_id, screen_module, router) do
+        # Restore this user's own runtime state from their UserState GenServer.
+        # This is completely separate from the ETS layout cache.
+        # User state is never shared between users, never stored in ETS.
+        declared_names = Flare.Layout.declared_variable_names(screen_module, screen_name)
+global_keys    = Application.get_env(:flare, :global_keys, [])
 
-    flare_socket = %Flare.Socket{
+saved_assigns =
+  user_id
+  |> Flare.UserState.get_all()
+  |> Map.take(declared_names ++ global_keys)
+        Flare.Logger.info(__MODULE__, "Restored assigns for #{user_id}: #{inspect(Map.keys(saved_assigns))}")
+
+        # ── Shared screen presence ───────────────────────────────────────────────
+        # Only screens that override topic/2 are "shared screens" — many users
+        # on the same logical instance (e.g. "window:AH7K2P"). Screens using the
+        # default topic never asked to share an instance, so no presence tracking
+        # happens for them — zero extra overhead, nothing exposed.
+        #
+        # Runs ONLY after authorization has passed (we are inside do_mount).
+        # Tracking before authorization would leak a rejected user's user_id into
+        # the presence list of a screen they were never allowed to join.
+        case screen_module.topic(user_id, params) do
+          :default ->
+            :ok
+
+          custom ->
+            shared_topic = "broadcast:#{custom}"
+            Flare.Presence.track(self(), shared_topic, user_id, %{})
+        end
+
+        flare_socket = %Flare.Socket{
       user_id:       user_id,
       screen_module: screen_module,
       screen_name:   screen_name,
@@ -136,8 +160,11 @@ defmodule Flare.Channel do
     }
 
     case Flare.Lifecycle.mount(screen_module, params, flare_socket) do
-      {:ok, mounted_socket} ->
-        envelope = Flare.Layout.build_init_envelope(screen_module, screen_name, mounted_socket.assigns)
+          {:ok, mounted_socket} ->
+            # nil means "screen declared no scaffold: option" — client leaves regions untouched.
+            # [] means "this screen explicitly wants every scaffold region hidden".
+            scaffold = get_router_scaffold(router, screen_name)
+            envelope = Flare.Layout.build_init_envelope(screen_module, screen_name, mounted_socket.assigns, scaffold)
         new_channel_socket = assign(channel_socket, :flare_socket, mounted_socket)
         send(self(), {:push_init, envelope})
         {:ok, new_channel_socket}
@@ -197,6 +224,17 @@ defmodule Flare.Channel do
       _                             -> nil
     end)
   end
+
+  # Returns the scaffold: list for a screen (persistent regions this screen wants
+      # visible — e.g. [:bottom_bar, :top_bar]), or nil if the screen didn't declare one.
+      # nil is intentionally distinct from [] — nil tells the client "don't touch scaffold
+      # visibility, leave whatever it currently has"; [] tells it "hide every scaffold region".
+      defp get_router_scaffold(router, screen_name) do
+        Enum.find_value(router.registered_screens(), nil, fn
+          {^screen_name, _module, opts} -> Keyword.get(opts, :scaffold, nil)
+          _                             -> nil
+        end)
+      end
 
   # Calls the configured role_resolver to get the user's role,
   # then checks if it's in the allowed list.
