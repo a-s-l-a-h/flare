@@ -1,11 +1,29 @@
 import "@divkitframework/divkit/dist/client.css";
 import { FlareClient } from "./flare-client";
+import { mountLogin } from "./login/login";
+
+const LOGIN_DIV = document.getElementById("flare-login");
+const ROOT_DIV  = document.getElementById("flare-app");
+let loginHandle = null;
+
+function showApp() {
+  LOGIN_DIV.style.display = "none";
+  ROOT_DIV.style.display = "flex";
+  loginHandle?.reset();
+}
+
+function startFlare(token) {
+  if (token) { localStorage.setItem("flare_token", token); window.__flare__.token = token; }
+  showApp();
+  if (typeof window.__flare_start__ === "function") window.__flare_start__();
+  else window.__flare__.autoStart = true;
+}
 
 window.__flare_start__ = function () {
   try {
     const cfg = window.__flare__ || {};
     const rootEl = document.getElementById("flare-root");
-    
+
     if (!rootEl) return;
 
     const client = new FlareClient({
@@ -41,6 +59,14 @@ window.__flare_start__ = function () {
     window.location.reload();
   }
 };
+
+// ── Boot sequence ─────────────────────────────────────────────────────────
+if (localStorage.getItem("flare_token")) {
+  startFlare(localStorage.getItem("flare_token"));
+} else {
+  LOGIN_DIV.style.display = "flex";
+  loginHandle = mountLogin(LOGIN_DIV, { onAuthenticated: startFlare });
+}
 
 if (window.__flare__?.autoStart) {
   window.__flare_start__();
