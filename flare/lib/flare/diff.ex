@@ -77,14 +77,14 @@ defmodule Flare.Diff do
   def empty?(diff) when is_map(diff), do: map_size(diff) == 0
 
   @doc """
-  Splits a diff into global keys and page-local keys.
+  Splits a diff into global keys and screen-local keys.
 
   `global_keys` is the list configured via `config :flare, global_keys: [...]`.
   Global keys (e.g. `:flare_cart_count`) are broadcast to all open screens
   for this user via UserState + PubSub.
-  Page-local keys are sent only to the current screen's channel.
+  Screen-local keys are sent only to the current screen's channel.
 
-  Returns `{global_diff, page_diff}`.
+  Returns `{global_diff, screen_diff}`.
 
   ## Example
 
@@ -95,13 +95,13 @@ defmodule Flare.Diff do
       {%{flare_cart_count: 3}, %{flare_price: "29.99"}}
   """
   def split(diff, global_keys) do
-    Flare.Logger.debug(__MODULE__, "Splitting diff into global/page")
+    Flare.Logger.debug(__MODULE__, "Splitting diff into global/screen")
 
-    Enum.reduce(diff, {%{}, %{}}, fn {k, v}, {global, page} ->
+    Enum.reduce(diff, {%{}, %{}}, fn {k, v}, {global, screen} ->
       if k in global_keys do
-        {Map.put(global, k, v), page}
+        {Map.put(global, k, v), screen}
       else
-        {global, Map.put(page, k, v)}
+        {global, Map.put(screen, k, v)}
       end
     end)
   end

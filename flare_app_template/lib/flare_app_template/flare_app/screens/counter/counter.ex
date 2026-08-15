@@ -25,7 +25,7 @@ defmodule FlareAppTemplate.FlareApp.Screens.Counter do
   def handle_event("increment", _payload, socket) do
     {:ok, counter} = CounterRecord.get_or_create_for_owner(socket.user_id)
     {:ok, updated} = CounterRecord.increment(counter)
-    sync_counter(socket.user_id, updated)
+    #sync_counter(socket.user_id, updated)
     {:noreply, load_counter(socket, updated)}
   end
 
@@ -33,7 +33,7 @@ defmodule FlareAppTemplate.FlareApp.Screens.Counter do
   def handle_event("decrement", _payload, socket) do
     {:ok, counter} = CounterRecord.get_or_create_for_owner(socket.user_id)
     {:ok, updated} = CounterRecord.decrement(counter)
-    sync_counter(socket.user_id, updated)
+    #sync_counter(socket.user_id, updated)
     {:noreply, load_counter(socket, updated)}
   end
 
@@ -41,7 +41,7 @@ defmodule FlareAppTemplate.FlareApp.Screens.Counter do
   def handle_event("reset_count", _payload, socket) do
     {:ok, counter} = CounterRecord.get_or_create_for_owner(socket.user_id)
     {:ok, updated} = CounterRecord.reset(counter)
-    sync_counter(socket.user_id, updated)
+    #sync_counter(socket.user_id, updated)
     {:noreply, load_counter(socket, updated)}
   end
 

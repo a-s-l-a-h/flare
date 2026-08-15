@@ -83,10 +83,44 @@ defmodule Flare.UserState do
   Merges new values into the cache and broadcasts any changes via PubSub.
   Keys set to `nil` are removed from the cache.
   Returns the diff map.
+
+  Broadcasts ONLY to this same user_id's own open screens/devices — the
+  PubSub topic is "user:\#{user_id}", and only channels belonging to this
+  same logged-in user subscribe to it (see Channel.do_join). It never
+  reaches any other user.
   """
   def update(nil, _values), do: %{}
   def update(user_id, new_values) do
     GenServer.call(via(user_id), {:update, new_values})
+  end
+
+  @doc """
+  Same as `update/2`, but the changes are computed by calling `fun` on the
+  CURRENT cached data, instead of being handed a ready-made map. Use this
+  when the new value depends on the old one (a counter, an accumulator).
+
+  Why this matters: if this same user has two devices open and both call
+  `update/2` with a value computed from a stale read (e.g. both read
+  count=4 and both send count=5), the second write silently overwrites
+  the first — one increment is lost. `update_with/2` avoids that because
+  `fun` runs INSIDE this GenServer's message handling. This GenServer
+  processes one message at a time, so if both devices call update_with/2
+  around the same moment, whichever call is handled first sees the real
+  current value, and the second call — handled right after — sees the
+  ALREADY-updated result, not a stale snapshot. Nothing is lost.
+
+  `fun` receives the user's current data map and must return a map of
+  changes to merge in (same nil-removes-the-key rule as update/2). The
+  returned map can contain one key or several.
+
+  `fun` must be fast and side-effect-free (no DB calls, no Repo.get
+  inside it) — it runs inside this user's single UserState process, so a
+  slow function delays every other update for that same user until it
+  returns.
+  """
+  def update_with(nil, _fun), do: %{}
+  def update_with(user_id, fun) when is_function(fun, 1) do
+    GenServer.call(via(user_id), {:update_fn, fun})
   end
 
   @doc """
@@ -121,7 +155,7 @@ end
 
 @doc """
   Saves values to the cache without broadcasting to other screens.
-  Used by Channel to persist page-local state across navigation.
+  Used by Channel to persist screen-local state across navigation.
   Unlike update/2, this never triggers PubSub.
 
   ## Rationale
@@ -196,6 +230,52 @@ end
     {:reply, diff, %{state | data: new_data}, timeout()}
     # timeout() resets the countdown. An active user making frequent updates
     # will never time out because each update pushes the deadline forward.
+  end
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # handle_call — {:update_fn, fun}
+  #
+  # Identical merge/nil-removal/broadcast behavior to {:update, new_values}
+  # above. The only difference: `fun.(state.data)` runs HERE, inside this
+  # one message handler, instead of the caller computing the map beforehand.
+  # Since this GenServer only ever processes one message at a time, this
+  # is what makes concurrent calls (two devices of the SAME user) safe —
+  # see the doc on update_with/2 above for the full explanation.
+  #
+  # try/rescue: if the developer's fun raises (e.g. assumes a key exists),
+  # this must not crash the whole UserState process — that would drop
+  # every open screen/device for this one user, not just this call.
+  # ─────────────────────────────────────────────────────────────────────────
+  @impl true
+  def handle_call({:update_fn, fun}, _from, state) do
+    try do
+      changes = fun.(state.data)
+
+      new_data =
+        state.data
+        |> Map.merge(changes)
+        |> Map.reject(fn {_, v} -> is_nil(v) end)
+
+      diff = Flare.Diff.compute(state.data, new_data)
+
+      unless Flare.Diff.empty?(diff) do
+        Phoenix.PubSub.broadcast(
+          Flare.PubSub,
+          "user:#{state.user_id}",
+          {:state_update, diff}
+        )
+      end
+
+      {:reply, diff, %{state | data: new_data}, timeout()}
+    rescue
+      e ->
+        Flare.Logger.error(
+          __MODULE__,
+          "update_with/2 function raised for user #{state.user_id}",
+          e
+        )
+        {:reply, %{}, state, timeout()}
+    end
   end
 
 @impl true

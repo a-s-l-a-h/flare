@@ -95,13 +95,13 @@ defmodule Flare.Router do
       @before_compile Flare.Router
 
       # Fallback — raised when a client joins a screen not in this router.
-      def screen_for!(page) do
+      def screen_for!(screen_name) do
         raise """
-        Flare: No screen registered for "#{page}".
+        Flare: No screen registered for "#{screen_name}".
 
         Add this line to your router:
 
-            screen "#{page}", MyApp.YourScreenModule
+            screen "#{screen_name}", MyApp.YourScreenModule
 
         """
       end
@@ -139,10 +139,10 @@ defmodule Flare.Router do
   If the screen module defines its own `authorize/2` callback, it takes
   full priority and the `roles:` option here is ignored for that screen.
   """
-  defmacro screen(page_name, module, opts \\ []) do
+  defmacro screen(screen_name, module, opts \\ []) do
     quote do
-      @flare_screens {unquote(page_name), unquote(module), unquote(opts)}
-      def screen_for!(unquote(page_name)), do: unquote(module)
+      @flare_screens {unquote(screen_name), unquote(module), unquote(opts)}
+      def screen_for!(unquote(screen_name)), do: unquote(module)
     end
   end
 end
