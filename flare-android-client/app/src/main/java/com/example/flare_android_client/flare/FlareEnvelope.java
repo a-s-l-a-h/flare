@@ -26,6 +26,13 @@ public class FlareEnvelope {
         public String name;
         public String type;
         public Object value;
+
+        // ── LOCAL ENGINE ADDITION ────────────────────────────────────────
+        // Opt-in flag read from "exported": true in state JSON — see
+        // LOCAL_ENGINE_PROTOCOL.md §13 (FlareExportedVariables). Defaults
+        // to false, which is behaviorally IDENTICAL to before this field
+        // existed — no existing state file needs to change.
+        public boolean exported;
     }
 
     public static FlareEnvelope fromInit(JSONObject json) {
@@ -71,6 +78,9 @@ public class FlareEnvelope {
                 def.name = obj.optString("name");
                 def.type = obj.optString("type", "string");
                 def.value = obj.opt("value"); // Can be String, Int, Bool, etc.
+                // Missing/absent "exported" key defaults to false — safe,
+                // zero-behavior-change default for every existing state file.
+                def.exported = obj.optBoolean("exported", false);
                 list.add(def);
             }
         }

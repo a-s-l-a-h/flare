@@ -62,6 +62,16 @@ import com.example.flare_android_client.flare.FlareEnvelope;
 import com.example.flare_android_client.native_features.NativeFeatureBridge;
 import com.example.flare_android_client.phoenix.PhoenixChannelClient;
 import com.example.flare_android_client.flare.FlareMessageDecoder;
+
+// ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────────
+// New, self-contained plugin/task/export subsystem — see
+// flare/LOCAL_ENGINE_PROTOCOL.md for the full cross-platform contract.
+import com.example.flare_android_client.flare.plugin.FlareClientPluginContext;
+import com.example.flare_android_client.flare.plugin.FlareClientPluginEngine;
+import com.example.flare_android_client.flare.task.FlareClientTaskEngine;
+import com.example.flare_android_client.flare.task.FlareClientTaskRegistry;
+import com.example.flare_android_client.flare.task.builtin.OpenBrowserTask;
+import com.example.flare_android_client.flare.export.FlareExportedVariables;
 import com.yandex.div.core.Div2Context;
 import com.yandex.div.core.DivConfiguration;
 import com.yandex.div.core.view2.Div2View;
@@ -273,6 +283,18 @@ public class FlareClientActivity extends AppCompatActivity {
     // Bridge that lets DivKit layouts trigger camera, QR scan, etc.
     private NativeFeatureBridge nativeBridge;
 
+    // ── LOCAL ENGINE ADDITIONS ────────────────────────────────────────────────
+    // The router for flare://clientplugin invocations — see
+    // flare/plugin/FlareClientPluginEngine.java.
+    private FlareClientPluginEngine clientPluginEngine;
+
+    // Names of variables declared with "exported": true in state JSON.
+    // Mirrored into FlareExportedVariables on every update() call — see
+    // updateVariable() below. A plain Set is safe here because it is only
+    // ever read/written on the main thread (same discipline already used
+    // by initializedLocalVars just above).
+    private final Set<String> exportedVariableNames = new HashSet<>();
+
 
     // ═══════════════════════════════════════
     //  STATIC LAUNCH HELPER
@@ -463,7 +485,95 @@ public class FlareClientActivity extends AppCompatActivity {
         // what's visible during the slide transition, so it must match immediately.
         getWindow().getDecorView().setBackgroundColor(isDarkMode ? COLOR_BG_DARK : COLOR_BG_LIGHT);
 
-        FlareDivActionHandler actionHandler = new FlareDivActionHandler(this::onDivKitAction, globalVarsController);
+        // ═══════════════════════════════════════════════════════════════
+        //  LOCAL ENGINE SETUP
+        //  Builds the engine-supplied runtime context (Channel B, protocol
+        //  §5.2), the plugin engine itself, and registers built-in client
+        //  tasks. All of this is additive — nothing above this block changes.
+        // ═══════════════════════════════════════════════════════════════
+        FlareClientPluginContext clientPluginContext = new FlareClientPluginContext() {
+            @Override
+            public String getAuthToken() {
+                // Read live from SharedPreferences every time — never a
+                // cached/stale value, per protocol §5.2.
+                return getSharedPreferences(PREF_FILE, MODE_PRIVATE).getString(PREF_TOKEN, null);
+            }
+
+            @Override
+            public String getBaseHttpUrl() {
+                // Derive from the current wsUrl the exact same way the rest
+                // of the client already thinks about connectivity — never a
+                // second, independently-maintained URL.
+                if (wsUrl == null) return null;
+                String base = wsUrl.replaceFirst("^wss://", "https://").replaceFirst("^ws://", "http://");
+                int socketIndex = base.indexOf("/socket");
+                return socketIndex >= 0 ? base.substring(0, socketIndex) : base;
+            }
+
+            @Override
+            public String getScreenName() {
+                return currentContentScreen;
+            }
+
+            @Override
+            public void notifyAuthFailure() {
+                // Routes into the SAME auth-failure/logout handling used
+                // everywhere else in this Activity — never a separate path.
+                clearStorage();
+            }
+        };
+
+        clientPluginEngine = new FlareClientPluginEngine(
+                this,
+                globalVarsController,
+                clientPluginContext,
+                // Mount-liveness check (protocol §11): a screen name is
+                // "still live" if it's either the current content screen or
+                // one of the always-mounted persistent scaffold regions.
+                screenName -> screenName != null &&
+                        (screenName.equals(contentMount.screenName) || persistentMounts.containsKey(screenName)),
+                // Fires on_success/on_error/on_cancel through the EXISTING
+                // pending-lock + channel-push path — never a new/parallel
+                // action-dispatch mechanism.
+                (actionName, originScreenName) -> {
+                    Mount targetMount = contentMount;
+                    if (originScreenName != null && !originScreenName.equals(contentMount.screenName)) {
+                        Mount region = persistentMounts.get(originScreenName);
+                        if (region != null) targetMount = region;
+                    }
+                    JSONObject followUpPayload = new JSONObject();
+                    try {
+                        followUpPayload.put("flare_action", actionName);
+                    } catch (Exception ignored) {
+                        // put() on a plain string key/value never throws in practice.
+                    }
+                    handleResolvedAction(actionName, followUpPayload, targetMount);
+                }
+        );
+
+        // Built-in client tasks, registered once here. An app is free to
+        // override "open_browser" later by calling
+        // FlareClientTaskRegistry.register(new MyOpenBrowserTask()) again —
+        // see LOCAL_ENGINE_PROTOCOL.md §12 for override semantics.
+        FlareClientTaskRegistry.register(new OpenBrowserTask());
+
+        FlareDivActionHandler actionHandler = new FlareDivActionHandler(new FlareDivActionHandler.FlareActionCallback() {
+            @Override
+            public void onAction(String actionType, JSONObject payload, DivViewFacade view) {
+                // Existing behavior — completely unchanged.
+                onDivKitAction(actionType, payload, view);
+            }
+
+            @Override
+            public void onClientTask(String taskId, JSONObject params) {
+                FlareClientTaskEngine.dispatch(FlareClientActivity.this, taskId, params);
+            }
+
+            @Override
+            public void onClientPlugin(String pluginId, JSONObject invocation, DivViewFacade view) {
+                dispatchClientPlugin(pluginId, invocation, view);
+            }
+        }, globalVarsController);
 
         // 2. Attach it to the DivKit Configuration!
 
@@ -997,6 +1107,14 @@ public class FlareClientActivity extends AppCompatActivity {
                         initializedLocalVars.add(def.name);
                     }
                     registerVariable(def.name, def.type, def.value);
+
+                    // ── LOCAL ENGINE ADDITION ────────────────────────────
+                    // Track exported variable names so updateVariable() can
+                    // mirror future changes into FlareExportedVariables —
+                    // see LOCAL_ENGINE_PROTOCOL.md §13.
+                    if (def.exported) {
+                        exportedVariableNames.add(def.name);
+                    }
                 }
             }
 
@@ -1274,8 +1392,23 @@ public class FlareClientActivity extends AppCompatActivity {
      */
     public void onDivKitAction(String eventType, JSONObject payload, DivViewFacade view) {
         Log.d(TAG, "onDivKitAction: " + eventType);
-
         Mount sourceMount = findMountForView(view);
+        handleResolvedAction(eventType, payload, sourceMount);
+    }
+
+    /**
+     * ── LOCAL ENGINE ADDITION ────────────────────────────────────────────
+     * Extracted, verbatim, from the original onDivKitAction() body so that
+     * a flare://clientplugin follow-up action (on_success/on_error/
+     * on_cancel) can be fired through the EXACT SAME pending-lock and
+     * channel-push machinery a real DivKit tap uses — without needing a
+     * DivViewFacade, which a synthetic follow-up action doesn't have.
+     *
+     * Nothing about the logic below is new or modified — it is the
+     * pre-existing onDivKitAction() body, just given a name so it can be
+     * called from two places instead of one.
+     */
+    private void handleResolvedAction(String eventType, JSONObject payload, Mount sourceMount) {
         String actionPendingVar = "local_flare_pending_" + eventType;
 
         // ═══════════════════════════════════════════════════════════════════
@@ -1379,6 +1512,40 @@ public class FlareClientActivity extends AppCompatActivity {
             Log.e(TAG, "onDivKitAction: failed to push event", e);
             releasePendingAction(sourceMount, actionPendingVar, eventType);
         }
+    }
+
+    /**
+     * ── LOCAL ENGINE ADDITION ────────────────────────────────────────────
+     * Routes a resolved flare://clientplugin invocation (already parsed by
+     * FlareDivActionHandler) into FlareClientPluginEngine.dispatch(). This
+     * method itself contains NO plugin-specific logic — only unpacking the
+     * normalized invocation object and delegating to the engine, per
+     * LOCAL_ENGINE_PROTOCOL.md §4.
+     */
+    private void dispatchClientPlugin(String pluginId, JSONObject invocation, DivViewFacade view) {
+        if (clientPluginEngine == null) {
+            // Should be unreachable — setupDivKit() always runs before any
+            // tap can occur — but guarded defensively so a future refactor
+            // can never turn this into a NullPointerException crash.
+            Log.e(TAG, "dispatchClientPlugin: engine not initialized yet");
+            return;
+        }
+
+        Mount sourceMount = findMountForView(view);
+        String originScreenName = sourceMount != null ? sourceMount.screenName : currentContentScreen;
+
+        String resultVar = invocation.optString("result_var", null);
+        JSONObject params = invocation.optJSONObject("params");
+        JSONArray expectFields = invocation.optJSONArray("expect_fields");
+        String onSuccess = invocation.has("on_success") ? invocation.optString("on_success") : null;
+        String onError   = invocation.has("on_error")   ? invocation.optString("on_error")   : null;
+        String onCancel  = invocation.has("on_cancel")  ? invocation.optString("on_cancel")  : null;
+        long timeoutMs   = invocation.optLong("timeout_ms", 0L);
+
+        clientPluginEngine.dispatch(
+                pluginId, resultVar, params, expectFields,
+                onSuccess, onError, onCancel, timeoutMs, originScreenName
+        );
     }
 
     /**
@@ -1532,6 +1699,15 @@ public class FlareClientActivity extends AppCompatActivity {
             } else {
                 String v = value != null ? value.toString() : "";
                 globalVarsController.putOrUpdate(new Variable.StringVariable(name, v));
+            }
+
+            // ── LOCAL ENGINE ADDITION ────────────────────────────────────
+            // One-directional mirror into FlareExportedVariables for any
+            // variable declared "exported": true — protocol §13. This is a
+            // WRITE-ONLY path from Flare's perspective: FlareExportedVariables
+            // is never read back into DivKit here or anywhere else.
+            if (exportedVariableNames.contains(name)) {
+                FlareExportedVariables.set(name, value);
             }
         } catch (Exception e) {
             Log.e(TAG, "updateVariable error for " + name, e);

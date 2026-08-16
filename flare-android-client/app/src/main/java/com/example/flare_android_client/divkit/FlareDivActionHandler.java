@@ -10,6 +10,7 @@ import com.yandex.div.data.Variable;
 import com.yandex.div.json.expressions.ExpressionResolver;
 import com.yandex.div2.DivAction;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.lang.reflect.Field;
@@ -82,6 +83,25 @@ public class FlareDivActionHandler extends DivActionHandler {
     private static final String SCHEME_FLARE = "flare";
     private static final String HOST_ACTION  = "action";
 
+    // ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────
+    // New URL hosts, routed BEFORE any query parameter or payload field is
+    // parsed — see LOCAL_ENGINE_PROTOCOL.md §2. "clienttask" (synchronous,
+    // no result) and "clientplugin" (async, native capability, structured
+    // result) are deliberately NOT named "command"/"feature" to avoid
+    // colliding, in a developer's head, with FlareCommandHandler (which
+    // executes SERVER-sent commands) or with generic "app feature" talk.
+    private static final String HOST_CLIENT_TASK   = "clienttask";
+    private static final String HOST_CLIENT_PLUGIN = "clientplugin";
+
+    // Query-string keys reserved by the flare://clientplugin protocol
+    // itself (LOCAL_ENGINE_PROTOCOL.md §3). Anything else in the URL is
+    // treated as layout-supplied plugin input (Channel A) and forwarded
+    // into the plugin's `params`.
+    private static final java.util.Set<String> CLIENT_PLUGIN_RESERVED_KEYS =
+            new java.util.HashSet<>(java.util.Arrays.asList(
+                    "plugin", "result_var", "on_success", "on_error", "on_cancel", "timeout_ms"
+            ));
+
     // ── Callback interface ──────────────────────────────────────────────────
     public interface FlareActionCallback {
         /**
@@ -99,6 +119,24 @@ public class FlareDivActionHandler extends DivActionHandler {
          * @param view        the DivViewFacade (rendered Div2View) that fired this action
          */
         void onAction(String actionType, JSONObject payload, DivViewFacade view);
+
+        /**
+         * ── LOCAL ENGINE ADDITION ──────────────────────────────────────
+         * Called for a flare://clienttask URL. Synchronous, on-device,
+         * fire-and-forget — no result is ever produced. Default no-op so
+         * this interface stays backward compatible with any existing
+         * implementer that predates this addition.
+         */
+        default void onClientTask(String taskId, JSONObject params) {}
+
+        /**
+         * ── LOCAL ENGINE ADDITION ──────────────────────────────────────
+         * Called for a flare://clientplugin URL. `invocation` bundles
+         * plugin/result_var/params/expect_fields/on_success/on_error/
+         * on_cancel/timeout_ms exactly per LOCAL_ENGINE_PROTOCOL.md §3.
+         * Default no-op for backward compatibility.
+         */
+        default void onClientPlugin(String pluginId, JSONObject invocation, DivViewFacade view) {}
     }
 
     private final FlareActionCallback      callback;
@@ -126,47 +164,143 @@ public class FlareDivActionHandler extends DivActionHandler {
 
         Uri url = (action.url != null) ? action.url.evaluate(resolver) : null;
 
-        if (url != null
-                && SCHEME_FLARE.equals(url.getScheme())
-                && HOST_ACTION.equals(url.getHost())) {
+        if (url != null && SCHEME_FLARE.equals(url.getScheme())) {
 
-            try {
-                // PRIMARY: pull params straight out of the resolved url. This
-                // Uri is already fully expression-resolved by DivKit (see
-                // action.url.evaluate(resolver) above) — Uri.getQueryParameter()
-                // also auto percent-decodes, so zero manual resolution needed.
-                JSONObject urlParams = parseFlareActionUrl(url);
+            // ── Route by host FIRST, per LOCAL_ENGINE_PROTOCOL.md §2 ──────
+            // Nothing about the query string or payload is inspected before
+            // this decision is made.
+            String host = url.getHost();
 
-                // LEGACY: still resolved via reflection for any screen JSON
-                // that hasn't been migrated to the url-param form yet.
-                JSONObject rawPayload =
-                        (action.payload != null) ? action.payload : new JSONObject();
-                JSONObject resolvedPayload = resolvePayload(rawPayload);
-
-                // url wins on key collisions — it's the field DivKit actually
-                // contracts to resolve, so treat it as the source of truth.
-                JSONObject payload = mergeJson(resolvedPayload, urlParams);
-
-                String actionType = payload.optString("flare_action");
-
-                if (actionType.isEmpty()) {
-                    Log.w(TAG, "Action missing 'flare_action' key — ignoring tap.");
-                    return true;
-                }
-
-                // MULTI-MOUNT: pass `view` through so the Activity can identify
-                // which Mount this tap belongs to (see FlareActionCallback above).
-                callback.onAction(actionType, payload, view);
-
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to handle DivKit action payload", e);
+            if (HOST_ACTION.equals(host)) {
+                handleServerAction(url, action, view);
+                return true;
             }
 
-            return true; // always consume flare:// actions
+            if (HOST_CLIENT_TASK.equals(host)) {
+                handleClientTask(url);
+                return true;
+            }
+
+            if (HOST_CLIENT_PLUGIN.equals(host)) {
+                handleClientPlugin(url, action, view);
+                return true;
+            }
+
+            // Unrecognized flare:// host — ignore silently per protocol §2,
+            // but leave a debug trace to help catch typos during development.
+            Log.w(TAG, "Unrecognized flare:// host: '" + host + "' — ignoring");
+            return true;
         }
 
         // Not a Flare action — let DivKit handle it normally (e.g. div-action://...)
         return super.handleAction(action, view, resolver);
+    }
+
+    /** flare://action — EXISTING, UNCHANGED behavior, only extracted into its own method. */
+    private void handleServerAction(Uri url, DivAction action, DivViewFacade view) {
+        try {
+            // PRIMARY: pull params straight out of the resolved url. This
+            // Uri is already fully expression-resolved by DivKit (see
+            // action.url.evaluate(resolver) at the call site) — Uri.getQueryParameter()
+            // also auto percent-decodes, so zero manual resolution needed.
+            JSONObject urlParams = parseFlareActionUrl(url);
+
+            // LEGACY: still resolved via reflection for any screen JSON
+            // that hasn't been migrated to the url-param form yet.
+            JSONObject rawPayload =
+                    (action.payload != null) ? action.payload : new JSONObject();
+            JSONObject resolvedPayload = resolvePayload(rawPayload);
+
+            // url wins on key collisions — it's the field DivKit actually
+            // contracts to resolve, so treat it as the source of truth.
+            JSONObject payload = mergeJson(resolvedPayload, urlParams);
+
+            String actionType = payload.optString("flare_action");
+
+            if (actionType.isEmpty()) {
+                Log.w(TAG, "Action missing 'flare_action' key — ignoring tap.");
+                return;
+            }
+
+            // MULTI-MOUNT: pass `view` through so the Activity can identify
+            // which Mount this tap belongs to (see FlareActionCallback above).
+            callback.onAction(actionType, payload, view);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to handle DivKit action payload", e);
+        }
+    }
+
+    /**
+     * ── LOCAL ENGINE ADDITION ──────────────────────────────────────────
+     * flare://clienttask?task=<id>&...params
+     * Synchronous, no result — just forward the id + raw params straight
+     * through to FlareClientActivity, which owns the actual dispatch.
+     */
+    private void handleClientTask(Uri url) {
+        try {
+            JSONObject urlParams = parseFlareActionUrl(url);
+            String taskId = urlParams.optString("task");
+            callback.onClientTask(taskId, urlParams);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to handle flare://clienttask payload", e);
+        }
+    }
+
+    /**
+     * ── LOCAL ENGINE ADDITION ──────────────────────────────────────────
+     * flare://clientplugin?plugin=<id>&result_var=<name>&...
+     * Builds the normalized "invocation" JSONObject described in
+     * LOCAL_ENGINE_PROTOCOL.md §3, merging URL query params (minus the
+     * protocol-reserved keys) and payload.params into a single `params`
+     * object for the plugin, then hands it all to the Activity.
+     */
+    private void handleClientPlugin(Uri url, DivAction action, DivViewFacade view) {
+        try {
+            JSONObject urlParams = parseFlareActionUrl(url);
+            JSONObject rawPayload = (action.payload != null) ? action.payload : new JSONObject();
+            JSONObject resolvedPayload = resolvePayload(rawPayload);
+
+            // Merge payload.params (if any) with non-reserved URL query
+            // params into one flat `params` object — this is "Channel A"
+            // (layout-supplied input) per protocol §5.1.
+            JSONObject pluginParams = new JSONObject();
+            JSONObject payloadParams = resolvedPayload.optJSONObject("params");
+            if (payloadParams != null) {
+                java.util.Iterator<String> payloadKeys = payloadParams.keys();
+                while (payloadKeys.hasNext()) {
+                    String key = payloadKeys.next();
+                    pluginParams.put(key, payloadParams.get(key));
+                }
+            }
+            java.util.Iterator<String> urlKeys = urlParams.keys();
+            while (urlKeys.hasNext()) {
+                String key = urlKeys.next();
+                if (!CLIENT_PLUGIN_RESERVED_KEYS.contains(key)) {
+                    pluginParams.put(key, urlParams.get(key));
+                }
+            }
+
+            JSONObject invocation = new JSONObject();
+            invocation.put("plugin", urlParams.optString("plugin"));
+            invocation.put("result_var", urlParams.optString("result_var"));
+            if (urlParams.has("on_success")) invocation.put("on_success", urlParams.optString("on_success"));
+            if (urlParams.has("on_error"))   invocation.put("on_error", urlParams.optString("on_error"));
+            if (urlParams.has("on_cancel"))  invocation.put("on_cancel", urlParams.optString("on_cancel"));
+            invocation.put("timeout_ms", urlParams.has("timeout_ms") ? urlParams.optLong("timeout_ms") : 0L);
+            invocation.put("params", pluginParams);
+
+            // expect_fields is only ever read from payload — it's a static
+            // projection instruction, not something that needs @{} resolution.
+            Object expectFields = resolvedPayload.opt("expect_fields");
+            if (expectFields instanceof JSONArray) {
+                invocation.put("expect_fields", expectFields);
+            }
+
+            callback.onClientPlugin(urlParams.optString("plugin"), invocation, view);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to handle flare://clientplugin payload", e);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════

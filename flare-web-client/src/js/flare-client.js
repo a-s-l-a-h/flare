@@ -8,6 +8,14 @@ import {
   createGlobalVariablesController
 } from "@divkitframework/divkit/dist/client";
 
+// ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────────
+// New, self-contained plugin/task/export subsystem — see
+// flare/LOCAL_ENGINE_PROTOCOL.md for the full cross-platform contract.
+import { FlareClientPluginEngine } from "./plugin/flare-client-plugin-engine";
+import { createClientPluginContext } from "./plugin/flare-client-plugin-context";
+import { dispatchClientTask } from "./task/flare-client-task-engine";
+import { FlareExportedVariables } from "./export/flare-exported-variables";
+
 // Same Lottie JSON your Android res/raw/ animation uses.
 import transitionAnimationData from "./flare-transition.json";
 
@@ -199,6 +207,23 @@ export class FlareClient {
 
     // 1. MUST BE CREATED FIRST
     this.globalController = createGlobalVariablesController();
+
+    // ── LOCAL ENGINE ADDITIONS ────────────────────────────────────────
+    // Names of variables declared with "exported": true — mirrored into
+    // FlareExportedVariables on every _setVariable() call below.
+    this._exportedVariableNames = new Set();
+
+    this._clientPluginEngine = new FlareClientPluginEngine({
+      context: createClientPluginContext({
+        getToken: () => this.token,
+        getBaseUrl: () => this._deriveBaseHttpUrl(),
+        getScreenName: () => this.content.screenName,
+        onAuthFailure: () => this._handleAuthFailure()
+      }),
+      isMountStillLive: (screenName) => this._isMountStillLive(screenName),
+      fireLocalAction: (actionName, screenName) => this._fireFollowupAction(actionName, screenName),
+      setVariable: (name, type, value) => this._setVariable(name, type, value)
+    });
 
     // 2. NOW IT IS SAFE TO SET THE VARIABLE
     const isDark = localStorage.getItem("local_dark_mode") === "true";
@@ -476,7 +501,14 @@ export class FlareClient {
     if (envelope.variables) {
       envelope.variables.forEach(v => {
         const existing = this.globalController.getVariable(v.name);
-        
+
+        // ── LOCAL ENGINE ADDITION ───────────────────────────────────
+        // Track exported variable names so _setVariable() can mirror
+        // future updates into FlareExportedVariables — protocol §13.
+        if (v.exported) {
+          this._exportedVariableNames.add(v.name);
+        }
+
         // -------------------------------------------------------------
         // FIX: Prevent JSON file defaults from wiping out saved local 
         // state (like our dark mode) when a screen loads!
@@ -784,11 +816,105 @@ export class FlareClient {
             this._setVariable(actionPendingVar, "boolean", false);
             mount.pendingActions.delete(eventType);
           });
+      } else if (actionUrl.startsWith("flare://clienttask")) {
+        // ── LOCAL ENGINE ADDITION ──────────────────────────────────────
+        // Synchronous, fire-and-forget, on-device only. Never touches the
+        // server. See LOCAL_ENGINE_PROTOCOL.md §2-3.
+        const params = this._parseFlareActionUrl(actionUrl);
+        dispatchClientTask(params.task, params);
+      } else if (actionUrl.startsWith("flare://clientplugin")) {
+        // ── LOCAL ENGINE ADDITION ──────────────────────────────────────
+        // Async, opens a native capability, always resolves to a
+        // structured result envelope. See LOCAL_ENGINE_PROTOCOL.md §2-3.
+        this._handleClientPluginAction(actionUrl, action, mount);
       }
     } catch (e) {
       // Unexpected error in action handling. Clear pending so UI is not stuck.
       this._clearAllPending(mount);
       console.error("[Flare] Action handler error", e);
+    }
+  }
+
+  // ── LOCAL ENGINE ADDITIONS ────────────────────────────────────────────
+
+  /**
+   * Parses a flare://clientplugin URL + payload into the normalized
+   * invocation shape (protocol §3) and hands it to FlareClientPluginEngine.
+   */
+  _handleClientPluginAction(actionUrl, action, mount) {
+    try {
+      const urlParams = this._parseFlareActionUrl(actionUrl);
+      const rawPayload = action.payload || {};
+      const resolvedPayload = this._resolvePayload(rawPayload);
+
+      // Merge payload.params with non-reserved URL query params — this is
+      // "Channel A" (layout-supplied input) per protocol §5.1.
+      const reservedKeys = new Set(["plugin", "result_var", "on_success", "on_error", "on_cancel", "timeout_ms"]);
+      const params = { ...(rawPayload.params || {}) };
+      Object.entries(urlParams).forEach(([key, value]) => {
+        if (!reservedKeys.has(key)) params[key] = value;
+      });
+
+      const pluginId = urlParams.plugin;
+      const resultVar = urlParams.result_var;
+      const expectFields = Array.isArray(rawPayload.expect_fields) ? rawPayload.expect_fields : null;
+      const timeoutMs = urlParams.timeout_ms ? parseInt(urlParams.timeout_ms, 10) : 0;
+
+      if (!pluginId || !resultVar) {
+        console.warn("[Flare] flare://clientplugin missing plugin or result_var — ignoring", urlParams);
+        return;
+      }
+
+      this._clientPluginEngine.dispatch({
+        pluginId,
+        resultVar,
+        params,
+        expectFields,
+        onSuccess: urlParams.on_success || null,
+        onError: urlParams.on_error || null,
+        onCancel: urlParams.on_cancel || null,
+        timeoutMs,
+        originScreenName: mount.screenName
+      });
+    } catch (e) {
+      console.error("[Flare] Client plugin action error", e);
+    }
+  }
+
+  /**
+   * Fires on_success/on_error/on_cancel through the EXACT SAME
+   * _handleAction() path a real DivKit tap uses — never a new/parallel
+   * dispatch mechanism. This is what LOCAL_ENGINE_PROTOCOL.md §7 means by
+   * "an ordinary flare_action".
+   */
+  _fireFollowupAction(actionName, screenName) {
+    let targetMount = this.content;
+    if (screenName && screenName !== this.content.screenName) {
+      const region = Object.values(this.regions).find(m => m.screenName === screenName);
+      if (region) targetMount = region;
+    }
+    this._handleAction(
+      { url: `flare://action?flare_action=${encodeURIComponent(actionName)}` },
+      targetMount
+    );
+  }
+
+  /** Mount-liveness check per protocol §11 — mirrors Android's MountLivenessCheck. */
+  _isMountStillLive(screenName) {
+    if (!screenName) return true; // no origin recorded — treat as still-live rather than dropping.
+    if (this.content.screenName === screenName) return true;
+    return Object.values(this.regions).some(m => m.screenName === screenName);
+  }
+
+  /** Derives the current API base HTTP URL the same way the client derives its own WebSocket URL. */
+  _deriveBaseHttpUrl() {
+    try {
+      const url = new URL(this.wsUrl, window.location.origin);
+      const proto = url.protocol === "wss:" ? "https:" : "http:";
+      return `${proto}//${url.host}`;
+    } catch (e) {
+      console.error("[Flare] Failed to derive base HTTP URL — falling back to window.location.origin", e);
+      return window.location.origin;
     }
   }
 
@@ -901,6 +1027,13 @@ export class FlareClient {
     }
     const variable = createVariable(name, finalType, value);
     this.globalController.setVariable(variable);
+  }
+
+  // ── LOCAL ENGINE ADDITION ──────────────────────────────────────────
+  // One-directional mirror into FlareExportedVariables — protocol §13.
+  // WRITE-ONLY from Flare's perspective; never read back into DivKit.
+  if (this._exportedVariableNames && this._exportedVariableNames.has(name)) {
+    FlareExportedVariables.set(name, value);
   }
 }
 

@@ -2,6 +2,14 @@ import "@divkitframework/divkit/dist/client.css";
 import { FlareClient } from "./flare-client";
 import { mountLogin } from "./login/login";
 
+// ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────────
+// Register built-in client tasks once, at app startup, before any layout
+// can possibly try to invoke them.
+import { registerClientTask } from "./task/flare-client-task-registry";
+import { OpenBrowserTask } from "./task/builtin/open-browser-task";
+
+registerClientTask(OpenBrowserTask);
+
 const LOGIN_DIV = document.getElementById("flare-login");
 const ROOT_DIV  = document.getElementById("flare-app");
 let loginHandle = null;
