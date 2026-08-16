@@ -204,6 +204,88 @@ defmodule Flare do
   end
 
   # ---------------------------------------------------------------------------
+  # cross_device_update — sync a state change to THIS SAME user's other open
+  # connections. Different from global_keys (which auto-syncs specific keys on
+  # every assign) and different from broadcast_to_screen/topic (which reaches
+  # OTHER users). This is an explicit, per-call, same-user-only push.
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Updates the given socket's own assigns AND pushes the same values to this
+  SAME user's OTHER open connections (another tab, another device). Never
+  reaches any other user — same scoping guarantee as push_to_user/3 and
+  sync_user_state/2, just with a choice of how wide within this one user's
+  connections to go.
+
+  Plain in-memory PubSub message passing under the hood — no ETS, no disk,
+  no database.
+
+  Returns the UPDATED socket, so call it right before `{:noreply, socket}`.
+
+  ## target (default: :same_screen)
+
+    - `:same_screen` — only this user's OTHER connections on the SAME
+      screen_name as this socket (e.g. "counter" open on another device).
+      Uses the existing push_to_user/3 path — zero new wiring involved.
+    - `"screen_name"` or `["a", "b"]` — also push to specific named other
+      screens for this same user (uses push_to_user/3 for each).
+    - `:auto` — push to every screen this user has open; each screen only
+      applies the keys it actually declares in its own state/<screen>.json.
+      A screen that doesn't declare a given key ignores the message
+      entirely — no wasted patch, no stray variable created there. This is
+      the "find the right screens automatically" option.
+
+  ## Example
+
+      def handle_event("increment", _payload, socket) do
+        {:ok, counter} = CounterRecord.get_or_create_for_owner(socket.user_id)
+        {:ok, updated} = CounterRecord.increment(counter)
+
+        {:noreply,
+          Flare.cross_device_update(socket, %{
+            flare_count: updated.current_count,
+            flare_last_updated: format_time(updated.last_updated_at)
+          }, :auto)}
+      end
+  """
+  def cross_device_update(socket, changes, target \\ :same_screen) when is_map(changes) do
+    push_cross_device(socket.user_id, socket.screen_name, changes, target)
+    Flare.Socket.assign(socket, Map.to_list(changes))
+  end
+
+  # broadcast_from/4 excludes the CALLING process from receiving its own
+  # message. cross_device_update always runs inside the originating
+  # channel process (called from handle_event/3), so self() here IS that
+  # channel — this stops it from double-patching itself. The normal
+  # handle_in("event", ...) → push_diff_and_commands flow already pushes
+  # this same screen's own patch; only OTHER connections need this broadcast.
+  defp push_cross_device(user_id, screen_name, changes, :same_screen) do
+    Phoenix.PubSub.broadcast_from(
+      Flare.PubSub, self(), "screen:#{user_id}:#{screen_name}", {:flare_push, changes}
+    )
+  end
+
+  defp push_cross_device(user_id, _screen_name, changes, :auto) do
+    Phoenix.PubSub.broadcast_from(
+      Flare.PubSub, self(), "user:#{user_id}", {:flare_auto_sync, changes}
+    )
+  end
+
+  defp push_cross_device(user_id, _screen_name, changes, screens) when is_list(screens) do
+    Enum.each(screens, fn screen ->
+      Phoenix.PubSub.broadcast_from(
+        Flare.PubSub, self(), "screen:#{user_id}:#{screen}", {:flare_push, changes}
+      )
+    end)
+  end
+
+  defp push_cross_device(user_id, _screen_name, changes, screen) when is_binary(screen) do
+    Phoenix.PubSub.broadcast_from(
+      Flare.PubSub, self(), "screen:#{user_id}:#{screen}", {:flare_push, changes}
+    )
+  end
+
+  # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------
 

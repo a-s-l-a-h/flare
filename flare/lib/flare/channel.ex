@@ -318,6 +318,7 @@ saved_assigns =
   end
 
   # Global state from UserState PubSub (another screen changed a shared key)
+  # — this is the EXISTING global_keys mechanism. Untouched.
   def handle_info({:state_update, global_diff}, channel_socket) do
     Flare.Logger.info(__MODULE__, "Global state update received")
     flare_socket = channel_socket.assigns.flare_socket
@@ -329,6 +330,34 @@ saved_assigns =
     push(channel_socket, "patch", envelope)
 
     {:noreply, assign(channel_socket, :flare_socket, new_flare_socket)}
+  end
+
+  # Auto-scoped sync from Flare.cross_device_update/3 with target: :auto.
+  # NEW clause, separate message tag from {:state_update, ...} above — does
+  # not affect global_keys behavior at all. Only applies keys THIS screen
+  # actually declares in its own state/<screen>.json; a screen that never
+  # declared the incoming key(s) drops the message with no patch sent.
+  def handle_info({:flare_auto_sync, changes}, channel_socket) do
+    flare_socket = channel_socket.assigns.flare_socket
+
+    declared_keys =
+      Flare.Layout.declared_variable_names(flare_socket.screen_module, flare_socket.screen_name)
+
+    relevant_diff = Map.take(changes, declared_keys)
+
+    if Flare.Diff.empty?(relevant_diff) do
+      {:noreply, channel_socket}
+    else
+      Flare.Logger.info(__MODULE__, "Auto-sync applied (declared keys matched)")
+
+      new_assigns      = Map.merge(flare_socket.assigns, relevant_diff)
+      new_flare_socket = %{flare_socket | assigns: new_assigns}
+
+      envelope = Flare.Layout.build_patch_envelope(flare_socket.screen_name, relevant_diff)
+      push(channel_socket, "patch", envelope)
+
+      {:noreply, assign(channel_socket, :flare_socket, new_flare_socket)}
+    end
   end
 
   # Direct state push from Flare.push_to_user/3

@@ -25,43 +25,47 @@ defmodule FlareAppTemplate.FlareApp.Screens.Counter do
   def handle_event("increment", _payload, socket) do
     {:ok, counter} = CounterRecord.get_or_create_for_owner(socket.user_id)
     {:ok, updated} = CounterRecord.increment(counter)
-    #sync_counter(socket.user_id, updated)
-    {:noreply, load_counter(socket, updated)}
+    {:noreply, load_counter(socket, updated, :auto)}
   end
 
   @impl true
   def handle_event("decrement", _payload, socket) do
     {:ok, counter} = CounterRecord.get_or_create_for_owner(socket.user_id)
     {:ok, updated} = CounterRecord.decrement(counter)
-    #sync_counter(socket.user_id, updated)
-    {:noreply, load_counter(socket, updated)}
+    {:noreply, load_counter(socket, updated, :auto)}
   end
 
   @impl true
   def handle_event("reset_count", _payload, socket) do
     {:ok, counter} = CounterRecord.get_or_create_for_owner(socket.user_id)
     {:ok, updated} = CounterRecord.reset(counter)
-    #sync_counter(socket.user_id, updated)
-    {:noreply, load_counter(socket, updated)}
+    {:noreply, load_counter(socket, updated, :auto)}
   end
 
+  # ONE function, same shape everywhere.
+  #
+  #   load_counter(socket, counter)          -> local-only assign (used by mount/2:
+  #                                              first load, nothing else to notify yet)
+  #   load_counter(socket, counter, target)  -> assign + push to other devices
+  #                                              (:auto, :same_screen, "name", or [names])
+  #
+  # Same two values (flare_count, flare_last_updated) either way — the only
+  # difference is whether it also notifies this user's other open screens.
   defp load_counter(socket, counter) do
     socket
     |> assign(:flare_count, counter.current_count)
     |> assign(:flare_last_updated, format_time(counter.last_updated_at))
   end
 
-  # Pushes the freshly-written DB value to this SAME user's other open
-  # screens/devices. The DB write already happened (CounterRecord.increment
-  # etc. above) — this is not a second read-modify-write, it's just telling
-  # UserState "here is the value that just became true, hand it to whoever
-  # else is connected as this user." load_counter/2 above still handles
-  # THIS screen's own display, unchanged.
-  defp sync_counter(user_id, counter) do
-    Flare.sync_user_state(user_id, %{
-      flare_count: counter.current_count,
-      flare_last_updated: format_time(counter.last_updated_at)
-    })
+  defp load_counter(socket, counter, target) do
+    Flare.cross_device_update(
+      socket,
+      %{
+        flare_count: counter.current_count,
+        flare_last_updated: format_time(counter.last_updated_at)
+      },
+      target
+    )
   end
 
   defp format_time(nil), do: ""
