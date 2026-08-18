@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 1. ADDED PERMISSIONS -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -17,7 +16,6 @@
         android:theme="@style/Theme.Flareandroidclient"
         android:usesCleartextTraffic="true">
 
-        <!-- MainActivity (Testing GUI) -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -29,12 +27,6 @@
 
         <activity
             android:name=".LoginActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-
-        <!-- 2. ADDED FLARE ACTIVITY -->
-        <activity
-            android:name=".FlareClientActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 

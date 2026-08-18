@@ -12,6 +12,7 @@ import android.widget.Toast;
 import android.content.Intent;
 import org.json.JSONObject;
 import androidx.appcompat.app.AppCompatActivity;
+import dev.flareframework.client.FlareClientActivity;
 
 public class MainActivity extends AppCompatActivity {
 
