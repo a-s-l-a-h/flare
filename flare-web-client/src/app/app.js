@@ -1,12 +1,11 @@
 import "@divkitframework/divkit/dist/client.css";
-import { FlareClient } from "./flare-client";
-import { mountLogin } from "./login/login";
+
+import { mountLogin } from "./login.js";
 
 // ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────────
 // Register built-in client tasks once, at app startup, before any layout
 // can possibly try to invoke them.
-import { registerClientTask } from "./task/flare-client-task-registry";
-import { OpenBrowserTask } from "./task/builtin/open-browser-task";
+import { FlareClient, registerClientTask, OpenBrowserTask } from "../flareclient/index.js";
 
 registerClientTask(OpenBrowserTask);
 

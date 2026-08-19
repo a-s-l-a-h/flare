@@ -7,7 +7,7 @@ import {
   createVariable,
   createGlobalVariablesController
 } from "@divkitframework/divkit/dist/client";
-
+import "@divkitframework/divkit/dist/client.css";
 // ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────────
 // New, self-contained plugin/task/export subsystem — see
 // flare/LOCAL_ENGINE_PROTOCOL.md for the full cross-platform contract.

@@ -1,7 +1,7 @@
 {
   "name": "flare-web-client",
   "scripts": {
-    "build": "esbuild src/js/app.js --bundle --outdir=dist/assets --target=es2017 && node scripts/copy-files.js"
+    "build": "esbuild src/app/app.js --bundle --outdir=dist/assets --target=es2017 && node scripts/copy-files.js"
   },
   "dependencies": {
     "@divkitframework/divkit": "32.52.0",
