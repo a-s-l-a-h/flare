@@ -68,8 +68,6 @@ import dev.flareframework.client.flare.channel.FlareMessageDecoder;
 import dev.flareframework.client.flare.plugin.FlareClientPluginContext;
 import dev.flareframework.client.flare.plugin.FlareClientPluginEngine;
 import dev.flareframework.client.flare.task.FlareClientTaskEngine;
-import dev.flareframework.client.flare.task.FlareClientTaskRegistry;
-import dev.flareframework.client.flare.task.builtin.OpenBrowserTask;
 import dev.flareframework.client.flare.export.FlareExportedVariables;
 import com.yandex.div.core.Div2Context;
 import com.yandex.div.core.DivConfiguration;
@@ -550,11 +548,13 @@ public class FlareClientActivity extends AppCompatActivity {
                 }
         );
 
-        // Built-in client tasks, registered once here. An app is free to
-        // override "open_browser" later by calling
-        // FlareClientTaskRegistry.register(new MyOpenBrowserTask()) again —
-        // see LOCAL_ENGINE_PROTOCOL.md §12 for override semantics.
-        FlareClientTaskRegistry.register(new OpenBrowserTask());
+        // All built-in / community / app tasks and plugins are now
+        // registered once, globally, by MainApplication.onCreate() in the
+        // :app module — before any Activity exists. FlareClientActivity
+        // (and flareclient core generally) never imports or knows about
+        // any specific task/plugin implementation. This is the whole
+        // point of the extensions split: a bug in a third-party task can
+        // never touch this file.
 
         FlareDivActionHandler actionHandler = new FlareDivActionHandler(new FlareDivActionHandler.FlareActionCallback() {
             @Override

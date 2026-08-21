@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.util.Log;
 
 import dev.flareframework.client.FlareClientActivity;
+import dev.flareframework.client.flare.task.FlareClientTaskEngine;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -102,6 +103,17 @@ public final class FlareCommandHandler {
                     String region = cmdPayload.optString("region", null);
                     if (region != null) {
                         activity.showScaffold(region);
+                    }
+                    break;
+                }
+
+                case "run_task": {
+                    String taskId = cmdPayload.optString("task", null);
+                    JSONObject taskParams = cmdPayload.optJSONObject("params");
+                    if (taskId != null) {
+                        FlareClientTaskEngine.dispatch(activity, taskId, taskParams != null ? taskParams : new JSONObject());
+                    } else {
+                        Log.w(TAG, "Command 'run_task' missing required 'task' identifier.");
                     }
                     break;
                 }

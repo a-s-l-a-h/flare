@@ -35,4 +35,7 @@ public interface FlareClientTask {
      * this is the wrong interface; use FlareClientPlugin instead.
      */
     void execute(Activity host, JSONObject params);
+
+    /** Registers this task instance into FlareClientTaskRegistry. Additive default method. */
+    default void register() { FlareClientTaskRegistry.register(this); }
 }

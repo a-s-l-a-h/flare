@@ -32,6 +32,8 @@ android {
 
 dependencies {
     implementation project(':flareclient')
+    implementation project(':flareclient-extensions-builtin')
+    implementation project(':flareclient-extensions-community')
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 

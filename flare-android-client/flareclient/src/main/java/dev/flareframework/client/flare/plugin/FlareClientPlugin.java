@@ -60,4 +60,7 @@ public interface FlareClientPlugin {
      */
     void launch(Activity host, JSONObject params, FlareClientPluginContext context,
                 FlareClientPluginCallback callback);
+
+    /** Registers this plugin instance into FlareClientPluginRegistry. Additive default method. */
+    default void register() { FlareClientPluginRegistry.register(this); }
 }
