@@ -960,9 +960,20 @@ export class FlareClient {
         this._setScaffoldVisible(cmd.payload.region, false);
         break;
 
-      case "show_scaffold":
+            case "show_scaffold":
         this._setScaffoldVisible(cmd.payload.region, true);
         break;
+
+      case "run_task": {
+        const taskId = cmd.payload.task;
+        const taskParams = cmd.payload.params || {};
+        if (taskId) {
+          dispatchClientTask(taskId, taskParams);
+        } else {
+          console.warn("[Flare] run_task command missing 'task' identifier.");
+        }
+        break;
+      }
 
       default:
         console.warn(`[Flare] Unknown command: ${cmd.type}`);
