@@ -15,6 +15,8 @@ import { FlareClientPluginEngine } from "./plugin/flare-client-plugin-engine";
 import { createClientPluginContext } from "./plugin/flare-client-plugin-context";
 import { dispatchClientTask } from "./task/flare-client-task-engine";
 import { FlareExportedVariables } from "./export/flare-exported-variables";
+import { createPaneContext } from "./nativepane/flare-native-pane-context.js";
+import { initNativePaneRegistry, getCustomComponentsMap } from "./nativepane/flare-native-pane-registry.js";
 
 // Same Lottie JSON your Android res/raw/ animation uses.
 import transitionAnimationData from "./flare-transition.json";
@@ -213,7 +215,7 @@ export class FlareClient {
     // FlareExportedVariables on every _setVariable() call below.
     this._exportedVariableNames = new Set();
 
-    this._clientPluginEngine = new FlareClientPluginEngine({
+        this._clientPluginEngine = new FlareClientPluginEngine({
       context: createClientPluginContext({
         getToken: () => this.token,
         getBaseUrl: () => this._deriveBaseHttpUrl(),
@@ -224,6 +226,19 @@ export class FlareClient {
       fireLocalAction: (actionName, screenName) => this._fireFollowupAction(actionName, screenName),
       setVariable: (name, type, value) => this._setVariable(name, type, value)
     });
+
+    // ── NATIVE PANE SETUP ────────────────────────────────────────────
+    initNativePaneRegistry(createPaneContext({
+      getScreenName: () => this.content.screenName,
+      getAuthToken: () => this.token,
+      getBaseHttpUrl: () => this._deriveBaseHttpUrl(),
+      notifyAuthFailure: () => this._handleAuthFailure(),
+      setVariable: (name, value) => this._setVariable(name, null, value),
+      fireAction: (actionName, payload) => this._handleAction(
+        { url: `flare://action?flare_action=${encodeURIComponent(actionName)}`, payload },
+        this.content
+      )
+    }));
 
     // 2. NOW IT IS SAFE TO SET THE VARIABLE
     const isDark = localStorage.getItem("local_dark_mode") === "true";
@@ -558,8 +573,9 @@ export class FlareClient {
         target:                    newWrapper,
         json:                      divkitJson,
         globalVariablesController: this.globalController,
+        customComponents:          getCustomComponentsMap(),
         onCustomAction:            (action) => this._handleAction(action, mount)
-      });
+      });      
 
       const divkitRoot = newWrapper.firstElementChild;
       if (divkitRoot) { divkitRoot.style.width = "100%"; divkitRoot.style.height = "100%"; }
@@ -586,6 +602,7 @@ export class FlareClient {
         target:                    mount.el,
         json:                      divkitJson,
         globalVariablesController: this.globalController,
+        customComponents:          getCustomComponentsMap(),
         onCustomAction:            (action) => this._handleAction(action, mount)
       });
       const divkitRoot = mount.el.firstElementChild;
@@ -698,6 +715,7 @@ export class FlareClient {
       target:                    mount.el,
       json:                      divkitJson,
       globalVariablesController: this.globalController,
+      customComponents:          getCustomComponentsMap(),
       onCustomAction:            (action) => this._handleAction(action, mount)
     });
 

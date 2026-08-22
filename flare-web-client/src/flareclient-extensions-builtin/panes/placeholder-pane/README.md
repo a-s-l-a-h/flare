@@ -1,0 +1,1 @@
+id: `placeholder_pane` | type: native pane | custom_props: `{ "title": "..." }`
