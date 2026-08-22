@@ -12,7 +12,6 @@
 //  executes SERVER-initiated ones.
 // ═══════════════════════════════════════════════════════════════
 
-import { dispatchClientTask } from "./task/flare-client-task-engine";
 
 /**
  * @param {Object} directive - a single { type, payload } entry from envelope.directives
@@ -55,17 +54,6 @@ export function executeDirective(directive, client) {
     case "show_scaffold":
       client._setScaffoldVisible(directive.payload.region, true);
       break;
-
-    case "run_task": {
-      const taskId = directive.payload.task;
-      const taskParams = directive.payload.params || {};
-      if (taskId) {
-        dispatchClientTask(taskId, taskParams);
-      } else {
-        console.warn("[Flare] run_task directive missing 'task' identifier.");
-      }
-      break;
-    }
 
     default:
       console.warn(`[Flare] Unknown directive: ${directive.type}`);
