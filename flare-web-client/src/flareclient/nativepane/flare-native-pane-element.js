@@ -3,13 +3,19 @@
 // `customElements` (confirmed: `<svelte:element this={desc.element}
 // {...custom_props}>`). Every call into third-party provider code is
 // try/caught so a bug there can never break DivKit's rendering or the
-// rest of the page. The browser calls connectedCallback/
-// disconnectedCallback outside of Svelte's own render cycle, so a thrown
-// error here would otherwise surface as an uncaught console error and,
-// in some browsers, abort custom element upgrade for that node — this
-// wrapper prevents both.
-import { FlareNativePaneVariables } from "./flare-native-pane-variables.js";
-
+// rest of the page.
+//
+// NOTE ON REACTIVITY: this file has NO dependency on flareclient's
+// export/ module (FlareExportedVariables). DivKit Web already provides
+// live reactivity for anything a pane declares via `watchedVariables`,
+// through the official divKitApiCallback hook below — that covers the
+// ordinary "my custom_props changed" case with zero extra plumbing. A
+// separate exported-variable mirror is only useful for the rarer case
+// of a pane wanting to read a Flare variable that was never passed into
+// it at all; a pane author who needs that can import
+// FlareExportedVariables directly in their own provider file. Keeping
+// nativepane's core files decoupled from export/ means deleting or
+// changing that module can never break this one.
 export function definePaneCustomElement(tagName, provider, paneContext) {
   if (customElements.get(tagName)) return;
 
@@ -17,7 +23,6 @@ export function definePaneCustomElement(tagName, provider, paneContext) {
     constructor() {
       super();
       this._view = null;
-      this._paneKey = null;
       this._unsubscribeFns = [];
     }
 
@@ -33,7 +38,6 @@ export function definePaneCustomElement(tagName, provider, paneContext) {
       for (const attr of this.attributes) {
         props[attr.name] = attr.value;
       }
-      this._paneKey = this.getAttribute("id") || tagName;
 
       try {
         this._view = provider.createView(this, props, paneContext) || this;
@@ -42,7 +46,6 @@ export function definePaneCustomElement(tagName, provider, paneContext) {
         try {
           this.innerHTML = `<div style="color:red;padding:8px;background:#ffe6e6;">Error in pane: ${tagName}</div>`;
         } catch (e2) {
-          // Even the fallback markup must never throw further.
           console.error(`[FlareNativePane] Failed to render fallback for ${tagName}:`, e2);
         }
       }
@@ -52,13 +55,8 @@ export function definePaneCustomElement(tagName, provider, paneContext) {
     // onMount(): it calls customElem.divKitApiCallback(ctx) if the method
     // exists. `variables` is a Map<name, VariableHandle> scoped to this
     // component's context (the same globalVariablesController Flare
-    // passes into render()), so 'flare_' / 'local_' prefixed vars are
-    // reachable here directly — this is an ALTERNATIVE to the
-    // FlareNativePaneVariables/FlareExportedVariables bridge below.
-    // Prefer this native hook when your pane only needs to react to a
-    // few named variables; use FlareNativePaneVariables when the pane
-    // needs access from OUTSIDE the DivKit tree, mirroring Android's
-    // FlareExportedVariables use case.
+    // passes into render()) — this is the ONLY reactivity mechanism a
+    // pane needs for values driven by custom_props/state.
     divKitApiCallback(ctx) {
       try {
         const variables = ctx && ctx.variables;
@@ -98,14 +96,6 @@ export function definePaneCustomElement(tagName, provider, paneContext) {
         } catch (e) {
           console.error(`[FlareNativePane] Crash intercepted in release() for ${tagName}:`, e);
         }
-      }
-
-      try {
-        if (this._paneKey) {
-          FlareNativePaneVariables.unsubscribeAll(this._paneKey);
-        }
-      } catch (e) {
-        console.error(`[FlareNativePane] Crash intercepted unsubscribing variables for ${tagName}:`, e);
       }
     }
   }

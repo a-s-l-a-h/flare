@@ -45,11 +45,10 @@ public final class FlareNativePaneAdapter implements DivCustomContainerViewAdapt
     private static final String TAG = "FlareNativePaneAdapter";
     private final FlareNativePaneContext paneContext;
 
-    // Tracks which provider created each live View, so bindView/release
+        // Tracks which provider created each live View, so bindView/release
     // route back to the exact same provider even if the registry changes
     // underneath (e.g. hot-swap during development).
     private final Map<View, FlareNativePaneProvider> activeProviders = new ConcurrentHashMap<>();
-    private final Map<View, String> activeKeys = new ConcurrentHashMap<>();
 
     public FlareNativePaneAdapter(FlareNativePaneContext context) {
         this.paneContext = context;
@@ -118,7 +117,6 @@ public final class FlareNativePaneAdapter implements DivCustomContainerViewAdapt
             }
 
             activeProviders.put(view, provider);
-            activeKeys.put(view, paneKey(div, type));
             return view;
         } catch (Throwable t) {
             // Crash isolation: a bug in ANY pane's createView() must never
@@ -145,11 +143,10 @@ public final class FlareNativePaneAdapter implements DivCustomContainerViewAdapt
         }
     }
 
-    @Override
+        @Override
     public void release(View view, DivCustom div) {
         String type = div.customType;
         FlareNativePaneProvider provider = activeProviders.remove(view);
-        String key = activeKeys.remove(view);
         if (provider == null) provider = FlareNativePaneRegistry.get(type);
 
         if (provider != null) {
@@ -159,27 +156,6 @@ public final class FlareNativePaneAdapter implements DivCustomContainerViewAdapt
                 Log.e(TAG, "Crash intercepted in release() for pane: " + type, t);
             }
         }
-
-        // Unconditional — subscription cleanup must happen even if the
-        // provider's own release() threw, or a leak accumulates silently.
-        try {
-            if (key != null) {
-                FlareNativePaneVariables.unsubscribeAll(key);
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, "Crash intercepted while unsubscribing variables for pane: " + type, t);
-        }
-    }
-
-    /**
-     * Uses this div's own "id" (via the real DivBase getter — DivCustom's
-     * `id` is a Kotlin property from DivBase, so the correct Java call is
-     * getId(), never reflection) as the reuse/subscription key. Falls
-     * back to custom_type if no id was set in the layout JSON.
-     */
-    private String paneKey(DivCustom div, String type) {
-        String id = div.getId();
-        return (id != null && !id.trim().isEmpty()) ? id : type;
     }
 
     private View createPlaceholder(Context context, String label) {
