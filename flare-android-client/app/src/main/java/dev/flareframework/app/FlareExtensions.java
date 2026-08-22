@@ -10,6 +10,9 @@ import dev.flareframework.extensions.builtin.tasks.show_alert.ShowAlertTask;
 import dev.flareframework.extensions.builtin.tasks.show_scaffold.ShowScaffoldTask;
 import dev.flareframework.extensions.builtin.tasks.hide_scaffold.HideScaffoldTask;
 
+// Builtin native panes
+import dev.flareframework.extensions.builtin.panes.placeholder_pane.PlaceholderPaneProvider;
+
 /**
  * Single place where every task/plugin — builtin, community, or app-level
  * — gets wired up. Lives here, in :app, and NOWHERE inside :flareclient,
@@ -25,17 +28,20 @@ public final class FlareExtensions {
 
     private FlareExtensions() {}
 
-    public static void registerAll() {
+        public static void registerAll() {
         Log.d(TAG, "Registering all extensions across tiers...");
 
         registerBuiltInTasks();
         registerBuiltInPlugins();
+        registerBuiltInPanes();
 
         registerCommunityTasks();
         registerCommunityPlugins();
+        registerCommunityPanes();
 
         registerAppTasks();
         registerAppPlugins();
+        registerAppPanes();
 
         Log.d(TAG, "Extension registration complete.");
     }
@@ -49,9 +55,16 @@ public final class FlareExtensions {
         new HideScaffoldTask().register();
     }
 
-    private static void registerBuiltInPlugins() { /* none yet */ }
+        private static void registerBuiltInPlugins() { /* none yet */ }
+
+    private static void registerBuiltInPanes() {
+        new PlaceholderPaneProvider().register();
+    }
+
     private static void registerCommunityTasks() { /* none yet */ }
     private static void registerCommunityPlugins() { /* none yet */ }
+    private static void registerCommunityPanes() { /* none yet */ }
     private static void registerAppTasks() { /* none yet */ }
     private static void registerAppPlugins() { /* none yet */ }
+    private static void registerAppPanes() { /* none yet */ }
 }

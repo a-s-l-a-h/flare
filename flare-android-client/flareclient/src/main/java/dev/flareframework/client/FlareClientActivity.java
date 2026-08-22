@@ -69,6 +69,8 @@ import dev.flareframework.client.flare.plugin.FlareClientPluginContext;
 import dev.flareframework.client.flare.plugin.FlareClientPluginEngine;
 import dev.flareframework.client.flare.task.FlareClientTaskEngine;
 import dev.flareframework.client.flare.export.FlareExportedVariables;
+import dev.flareframework.client.flare.nativepane.FlareNativePaneAdapter;
+import dev.flareframework.client.flare.nativepane.FlareNativePaneContext;
 import com.yandex.div.core.Div2Context;
 import com.yandex.div.core.DivConfiguration;
 import com.yandex.div.core.view2.Div2View;
@@ -548,13 +550,53 @@ public class FlareClientActivity extends AppCompatActivity {
                 }
         );
 
-        // All built-in / community / app tasks and plugins are now
-        // registered once, globally, by MainApplication.onCreate() in the
-        // :app module — before any Activity exists. FlareClientActivity
-        // (and flareclient core generally) never imports or knows about
-        // any specific task/plugin implementation. This is the whole
-        // point of the extensions split: a bug in a third-party task can
-        // never touch this file.
+                // All built-in / community / app tasks, plugins, and native panes
+        // are registered once, globally, by MainApplication.onCreate() in
+        // the :app module — before any Activity exists. FlareClientActivity
+        // (and flareclient core generally) never imports or knows about any
+        // specific task/plugin/pane implementation. A bug in a third-party
+        // extension can never touch this file.
+
+        FlareNativePaneContext paneContext = new FlareNativePaneContext() {
+            @Override
+            public String getAuthToken() {
+                return getSharedPreferences(PREF_FILE, MODE_PRIVATE).getString(PREF_TOKEN, null);
+            }
+
+            @Override
+            public String getBaseHttpUrl() {
+                if (wsUrl == null) return null;
+                String base = wsUrl.replaceFirst("^wss://", "https://").replaceFirst("^ws://", "http://");
+                int socketIndex = base.indexOf("/socket");
+                return socketIndex >= 0 ? base.substring(0, socketIndex) : base;
+            }
+
+            @Override
+            public String getScreenName() {
+                return currentContentScreen;
+            }
+
+            @Override
+            public void notifyAuthFailure() {
+                clearStorage();
+            }
+
+            @Override
+            public void setVariable(String name, Object value) {
+                runOnUiThread(() -> updateVariable(name, value));
+            }
+
+            @Override
+            public void fireAction(String actionName, JSONObject payload) {
+                runOnUiThread(() -> {
+                    JSONObject data = payload != null ? payload : new JSONObject();
+                    try {
+                        data.put("flare_action", actionName);
+                    } catch (Exception ignored) {}
+                    handleResolvedAction(actionName, data, contentMount);
+                });
+            }
+        };
 
         FlareDivActionHandler actionHandler = new FlareDivActionHandler(new FlareDivActionHandler.FlareActionCallback() {
             @Override
@@ -574,12 +616,18 @@ public class FlareClientActivity extends AppCompatActivity {
             }
         }, globalVarsController);
 
-        // 2. Attach it to the DivKit Configuration!
-
-        // 2. Attach it to the DivKit Configuration!
+                // 2. Attach it to the DivKit Configuration!
+        //
+        // NOTE: .divCustomContainerViewAdapter(...) is the builder method
+        // for the modern DivCustomContainerViewAdapter interface (confirmed
+        // from DivKit source). Verify this exact method name compiles
+        // against your pinned divkit:32.52.0 artifact — if it doesn't
+        // resolve, check DivConfiguration.Builder's actual API in your
+        // IDE and rename this one call accordingly.
         DivConfiguration config = new DivConfiguration.Builder(new CoilDivImageLoader(this))
                 .actionHandler(actionHandler)
                 .divVariableController(globalVarsController) // 🔥 FIX: Attach variables here
+                .divCustomContainerViewAdapter(new FlareNativePaneAdapter(paneContext))
                 .visualErrorsEnabled(true)
                 .build();
 
