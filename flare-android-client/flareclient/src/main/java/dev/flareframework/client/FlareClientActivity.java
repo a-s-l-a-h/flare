@@ -56,7 +56,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import dev.flareframework.client.divkit.FlareDivActionHandler;
 import dev.flareframework.client.divkit.FlareDivViewFactory;
-import dev.flareframework.client.flare.channel.FlareCommandHandler;
+import dev.flareframework.client.flare.channel.FlareServerDirectiveHandler;
 import dev.flareframework.client.flare.channel.FlareEnvelope;
 import dev.flareframework.client.nativefeatures.NativeFeatureBridge;
 import dev.flareframework.client.phoenix.PhoenixChannelClient;
@@ -1256,7 +1256,7 @@ public class FlareClientActivity extends AppCompatActivity {
 
             // ── Step 5: Execute bootstrap commands from init envelope ─────────
             // The server puts store_token here on first connect (new guest).
-            FlareCommandHandler.execute(
+            FlareServerDirectiveHandler.execute(
                     envelope,
                     this,
                     this::navigateTo,
@@ -1314,7 +1314,7 @@ public class FlareClientActivity extends AppCompatActivity {
             clearPendingForMount(mount);
 
             // ── Step 3: Execute commands ──────────────────────────────────────
-            FlareCommandHandler.execute(
+            FlareServerDirectiveHandler.execute(
                     envelope,
                     this,
                     this::navigateTo,

@@ -211,9 +211,9 @@ def declared_variable_names(screen_module, screen_name) do
 end
 
   @doc false
-  def build_patch_with_commands_envelope(screen_name, diff, commands) do
+  def build_patch_with_directives_envelope(screen_name, diff, directives) do
     base = build_patch_envelope(screen_name, diff)
-    Map.put(base, "commands", commands)
+    Map.put(base, "directives", directives)
   end
 
   @doc false

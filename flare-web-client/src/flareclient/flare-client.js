@@ -14,6 +14,7 @@ import "@divkitframework/divkit/dist/client.css";
 import { FlareClientPluginEngine } from "./plugin/flare-client-plugin-engine";
 import { createClientPluginContext } from "./plugin/flare-client-plugin-context";
 import { dispatchClientTask } from "./task/flare-client-task-engine";
+import { executeDirective } from "./flare-directive-handler";
 import { FlareExportedVariables } from "./export/flare-exported-variables";
 import { createPaneContext } from "./nativepane/flare-native-pane-context.js";
 import { initNativePaneRegistry, getCustomComponentsMap } from "./nativepane/flare-native-pane-registry.js";
@@ -543,9 +544,9 @@ export class FlareClient {
       });
     }
 
-    // Execute any commands the server sent with the init envelope
-    if (envelope.commands) {
-      envelope.commands.forEach(cmd => this._executeCommand(cmd));
+    // Execute any directives the server sent with the init envelope
+    if (envelope.directives) {
+      envelope.directives.forEach(d => executeDirective(d, this));
     }
     // Apply this screen's declared scaffold visibility (only meaningful for
     // the primary content mount — persistent regions never carry a "scaffold"
@@ -667,8 +668,8 @@ export class FlareClient {
     // ---------------------------------------------------------------------------
     this._clearAllPending(mount);
 
-    if (envelope.commands) {
-      envelope.commands.forEach(cmd => this._executeCommand(cmd));
+    if (envelope.directives) {
+      envelope.directives.forEach(d => executeDirective(d, this));
     }
   }
 
@@ -943,60 +944,60 @@ export class FlareClient {
   // of which mount's channel the command arrived on. This lets a bottom-bar 
   // tap route navigation to the main content area.
   // ---------------------------------------------------------------------------
-  _executeCommand(cmd) {
-    this.log(`⚡ Command: ${cmd.type}`, cmd.payload);
+  // _executeCommand(cmd) {
+  //   this.log(`⚡ Command: ${cmd.type}`, cmd.payload);
 
-    switch (cmd.type) {
-      case "navigate":
-        this.navigateTo(cmd.payload.screen, cmd.payload.params || {});
-        break;
+  //   switch (cmd.type) {
+  //     case "navigate":
+  //       this.navigateTo(cmd.payload.screen, cmd.payload.params || {});
+  //       break;
 
-      case "show_alert":
-        alert(`${cmd.payload.title}\n\n${cmd.payload.message}`);
-        break;
+  //     case "show_alert":
+  //       alert(`${cmd.payload.title}\n\n${cmd.payload.message}`);
+  //       break;
       
-      case "store_token": {
-        // Server can still refresh/rotate a token mid-session.
-        localStorage.setItem("flare_token", cmd.payload.token);
-        this.token = cmd.payload.token;
-        this.log("Token refreshed by server");
-        break;
-      }
+  //     case "store_token": {
+  //       // Server can still refresh/rotate a token mid-session.
+  //       localStorage.setItem("flare_token", cmd.payload.token);
+  //       this.token = cmd.payload.token;
+  //       this.log("Token refreshed by server");
+  //       break;
+  //     }
       
-      case "clear_storage":
-        // Logout — clear token then redirect to login page.
-        localStorage.removeItem("flare_token");
-        this.token = null;
-        this._handleAuthFailure();
-        break;
+  //     case "clear_storage":
+  //       // Logout — clear token then redirect to login page.
+  //       localStorage.removeItem("flare_token");
+  //       this.token = null;
+  //       this._handleAuthFailure();
+  //       break;
 
-      case "haptic":
-        if (navigator.vibrate) navigator.vibrate(50);
-        break;
+  //     case "haptic":
+  //       if (navigator.vibrate) navigator.vibrate(50);
+  //       break;
 
-      case "hide_scaffold":
-        this._setScaffoldVisible(cmd.payload.region, false);
-        break;
+  //     case "hide_scaffold":
+  //       this._setScaffoldVisible(cmd.payload.region, false);
+  //       break;
 
-            case "show_scaffold":
-        this._setScaffoldVisible(cmd.payload.region, true);
-        break;
+  //           case "show_scaffold":
+  //       this._setScaffoldVisible(cmd.payload.region, true);
+  //       break;
 
-      case "run_task": {
-        const taskId = cmd.payload.task;
-        const taskParams = cmd.payload.params || {};
-        if (taskId) {
-          dispatchClientTask(taskId, taskParams);
-        } else {
-          console.warn("[Flare] run_task command missing 'task' identifier.");
-        }
-        break;
-      }
+  //     case "run_task": {
+  //       const taskId = cmd.payload.task;
+  //       const taskParams = cmd.payload.params || {};
+  //       if (taskId) {
+  //         dispatchClientTask(taskId, taskParams);
+  //       } else {
+  //         console.warn("[Flare] run_task command missing 'task' identifier.");
+  //       }
+  //       break;
+  //     }
 
-      default:
-        console.warn(`[Flare] Unknown command: ${cmd.type}`);
-    }
-  }
+  //     default:
+  //       console.warn(`[Flare] Unknown command: ${cmd.type}`);
+  //   }
+  // }
 
   // ---------------------------------------------------------------------------
   // _clearAllPending — clear every currently in-flight per-action pending var

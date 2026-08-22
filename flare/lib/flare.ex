@@ -23,8 +23,8 @@ defmodule Flare do
         %{flare_cart_count: Map.get(data, :flare_cart_count, 0) + 1}
       end)
 
-      # Push a command to one user's screen
-      Flare.push_command_to_user("user_123", "store", "show_alert", %{
+      # Push a directive to one client connection
+      Flare.push_directive_to_client("user_123", "store", "show_alert", %{
         title: "Order shipped!",
         message: "Your order is on the way."
       })
@@ -122,19 +122,20 @@ defmodule Flare do
   # ---------------------------------------------------------------------------
 
   @doc """
-  Pushes a single command to a specific user's specific screen.
+  Pushes a single directive to one specific client connection (a given
+  user_id's currently-open screen_name).
 
   ## Example
 
-      Flare.push_command_to_user("user_123", "store", "navigate", %{screen: "cart"})
+      Flare.push_directive_to_client("user_123", "store", "navigate", %{screen: "cart"})
   """
-  def push_command_to_user(user_id, screen_name, command_type, payload \\ %{}) do
-    command = %{"type" => command_type, "payload" => stringify_keys(payload)}
+  def push_directive_to_client(user_id, screen_name, directive_type, payload \\ %{}) do
+    directive = %{"type" => directive_type, "payload" => stringify_keys(payload)}
 
     Phoenix.PubSub.broadcast(
       Flare.PubSub,
       "screen:#{user_id}:#{screen_name}",
-      {:flare_command, command}
+      {:flare_directive, directive}
     )
   end
 

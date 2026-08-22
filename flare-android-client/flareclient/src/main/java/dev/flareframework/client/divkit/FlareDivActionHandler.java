@@ -88,8 +88,8 @@ public class FlareDivActionHandler extends DivActionHandler {
     // parsed — see LOCAL_ENGINE_PROTOCOL.md §2. "clienttask" (synchronous,
     // no result) and "clientplugin" (async, native capability, structured
     // result) are deliberately NOT named "command"/"feature" to avoid
-    // colliding, in a developer's head, with FlareCommandHandler (which
-    // executes SERVER-sent commands) or with generic "app feature" talk.
+    // colliding, in a developer's head, with FlareServerDirectiveHandler (which
+    // executes SERVER-sent directives) or with generic "app feature" talk.
     private static final String HOST_CLIENT_TASK   = "clienttask";
     private static final String HOST_CLIENT_PLUGIN = "clientplugin";
 

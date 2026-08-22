@@ -156,7 +156,7 @@ saved_assigns =
       screen_module: screen_module,
       screen_name:   screen_name,
       assigns:       saved_assigns,
-      commands:      []
+      directives:    []
     }
 
     case Flare.Lifecycle.mount(screen_module, params, flare_socket) do
@@ -278,14 +278,14 @@ saved_assigns =
     flare_socket = channel_socket.assigns.flare_socket
     old_assigns  = flare_socket.assigns
 
-    flare_socket = %{flare_socket | commands: []}
+    flare_socket = %{flare_socket | directives: []}
 
     case Flare.Lifecycle.handle_event(flare_socket.screen_module, type, payload, flare_socket) do
       {:noreply, new_flare_socket} ->
-        diff     = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
-        commands = new_flare_socket.commands
+        diff       = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
+        directives = new_flare_socket.directives
 
-        channel_socket = push_diff_and_commands(channel_socket, diff, commands)
+        channel_socket = push_diff_and_directives(channel_socket, diff, directives)
 
         # :ok reply tells the client push().receive("ok") to fire.
         {:reply, :ok, assign(channel_socket, :flare_socket, new_flare_socket)}
@@ -378,12 +378,12 @@ saved_assigns =
     {:noreply, assign(channel_socket, :flare_socket, new_flare_socket)}
   end
 
-  # Direct command push from Flare.push_command_to_user/4
-  def handle_info({:flare_command, command}, channel_socket) do
-    Flare.Logger.info(__MODULE__, "Direct command received: #{command["type"]}")
+  # Direct directive push from Flare.push_directive_to_client/4
+  def handle_info({:flare_directive, directive}, channel_socket) do
+    Flare.Logger.info(__MODULE__, "Direct directive received: #{directive["type"]}")
     flare_socket = channel_socket.assigns.flare_socket
 
-    envelope = Flare.Layout.build_patch_with_commands_envelope(flare_socket.screen_name, %{}, [command])
+    envelope = Flare.Layout.build_patch_with_directives_envelope(flare_socket.screen_name, %{}, [directive])
     push(channel_socket, "patch", envelope)
 
     {:noreply, channel_socket}
@@ -423,15 +423,15 @@ saved_assigns =
     flare_socket = channel_socket.assigns.flare_socket
     old_assigns  = flare_socket.assigns
 
-    flare_socket = %{flare_socket | commands: []}
+    flare_socket = %{flare_socket | directives: []}
 
     {:noreply, new_flare_socket} =
       Flare.Lifecycle.handle_info(flare_socket.screen_module, message, flare_socket)
 
-    diff     = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
-    commands = new_flare_socket.commands
+    diff       = Flare.Diff.compute(old_assigns, new_flare_socket.assigns)
+    directives = new_flare_socket.directives
 
-    channel_socket = push_diff_and_commands(channel_socket, diff, commands)
+    channel_socket = push_diff_and_directives(channel_socket, diff, directives)
 
     {:noreply, assign(channel_socket, :flare_socket, new_flare_socket)}
   end
@@ -459,19 +459,16 @@ saved_assigns =
   end
 
   # ---------------------------------------------------------------------------
-  # push_diff_and_commands — private
+  # push_diff_and_directives — private
   # ---------------------------------------------------------------------------
 
-  defp push_diff_and_commands(channel_socket, diff, commands) do
+  defp push_diff_and_directives(channel_socket, diff, directives) do
     flare_socket = channel_socket.assigns.flare_socket
     screen_name  = flare_socket.screen_name
     global_keys  = Application.get_env(:flare, :global_keys, [])
 
     {global_diff, screen_diff} = Flare.Diff.split(diff, global_keys)
 
-    # Global keys are broadcast via UserState → PubSub → all open screens.
-    # We also merge them back into this socket's assigns so the next diff
-    # cycle doesn't see these global values as "changed" again.
     updated_channel_socket =
       unless Flare.Diff.empty?(global_diff) do
         Flare.UserState.update(flare_socket.user_id, global_diff)
@@ -486,11 +483,11 @@ saved_assigns =
       Flare.UserState.save(flare_socket.user_id, screen_diff)
     end
 
-    has_diff = not Flare.Diff.empty?(screen_diff)
-    has_cmds = length(commands) > 0
+    has_diff       = not Flare.Diff.empty?(screen_diff)
+    has_directives = length(directives) > 0
 
-    if has_diff or has_cmds do
-      envelope = Flare.Layout.build_patch_with_commands_envelope(screen_name, screen_diff, commands)
+    if has_diff or has_directives do
+      envelope = Flare.Layout.build_patch_with_directives_envelope(screen_name, screen_diff, directives)
       push(updated_channel_socket, "patch", envelope)
     end
 

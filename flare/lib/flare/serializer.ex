@@ -17,7 +17,7 @@
 # BINARY FRAME FORMAT (version 1):
 #   [1 byte ] version        = 1  (bump if format changes incompatibly)
 #   [4 bytes] header_len     big-endian uint32
-#   [N bytes] header_json    compact JSON — screen name, state, commands, encoding marker
+#   [N bytes] header_json    compact JSON — screen name, state, directives, encoding marker
 #   [4 bytes] layout_len     big-endian uint32
 #   [M bytes] layout_gz      gzip-compressed layout JSON bytes
 #   [4 bytes] vars_len       big-endian uint32

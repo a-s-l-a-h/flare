@@ -156,7 +156,7 @@ defmodule Flare.Screen do
       @behaviour Flare.Screen
 
       import Flare.Socket,    only: [assign: 2, assign: 3]
-      import Flare.Commands
+      import Flare.Directives
       import Flare.Screen,    only: [screen_dir: 1, use_cache: 1]
 
       def authorize(_user_id, _params), do: :ok
