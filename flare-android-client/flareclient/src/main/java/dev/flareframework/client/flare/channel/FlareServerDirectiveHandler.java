@@ -80,13 +80,13 @@ public final class FlareServerDirectiveHandler {
                     break;
                 }
 
-                case "store_token": {
+                case "store_login_token": {
                     String token = directivePayload.optString("token", null);
                     if (token != null) storeTokenCallback.accept(token);
                     break;
                 }
 
-                case "clear_storage": {
+                case "clear_login_token": {
                     clearStorageCallback.run();
                     break;
                 }

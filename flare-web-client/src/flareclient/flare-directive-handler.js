@@ -31,14 +31,14 @@ export function executeDirective(directive, client) {
       alert(`${directive.payload.title}\n\n${directive.payload.message}`);
       break;
 
-    case "store_token": {
+    case "store_login_token": {
       localStorage.setItem("flare_token", directive.payload.token);
       client.token = directive.payload.token;
       client.log("Token refreshed by server");
       break;
     }
 
-    case "clear_storage":
+    case "clear_login_token":
       localStorage.removeItem("flare_token");
       client.token = null;
       client._handleAuthFailure();

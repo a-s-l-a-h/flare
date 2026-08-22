@@ -12,7 +12,7 @@ defmodule Flare.Directives do
 
       socket
       |> assign(:flare_auth_success, true)
-      |> store_token(token)
+      |> store_login_token(token)
       |> navigate("store")
       |> haptic(:success)
 
@@ -28,8 +28,8 @@ defmodule Flare.Directives do
 
   - `navigate/3` — leave current channel, join a new screen
   - `show_alert/4` — show a native platform alert dialog
-  - `store_token/2` — store an auth token securely on the device
-  - `clear_storage/1` — remove the stored auth token (logout)
+  - `store_login_token/2` — store an auth token securely on the device
+  - `clear_login_token/1` — remove the stored auth token (logout)
   - `haptic/2` — trigger haptic feedback on supported devices
   """
 
@@ -68,10 +68,10 @@ defmodule Flare.Directives do
   ## Example
 
       token = Phoenix.Token.sign(MyApp.Endpoint, "user_auth", user_id)
-      socket |> store_token(token)
+      socket |> store_login_token(token)
   """
-  def store_token(socket, token) do
-    add_directive(socket, "store_token", %{"token" => token})
+  def store_login_token(socket, token) do
+    add_directive(socket, "store_login_token", %{"token" => token})
   end
 
   @doc """
@@ -81,10 +81,10 @@ defmodule Flare.Directives do
 
   ## Example
 
-      socket |> clear_storage()
+      socket |> clear_login_token()
   """
-  def clear_storage(socket) do
-    add_directive(socket, "clear_storage", %{})
+  def clear_login_token(socket) do
+    add_directive(socket, "clear_login_token", %{})
   end
 
   @doc """

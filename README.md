@@ -941,7 +941,7 @@ All command builders live in `Flare.Commands` (auto-imported by `use Flare.Scree
 ```elixir
 socket
 |> assign(:flare_auth_success, true)
-|> store_token(token)
+|> store_login_token(token)
 |> navigate("store")
 |> haptic(:success)
 
@@ -966,10 +966,10 @@ show_alert(socket, "Are you sure?", "This action cannot be undone.", "Delete")
 
 Native platform alert dialog (`window.alert`-style on web, `AlertDialog` on Android).
 
-### `store_token/2`
+### `store_login_token/2`
 
 ```elixir
-socket |> store_token(Phoenix.Token.sign(MyApp.Endpoint, "user_auth", user_id))
+socket |> store_login_token(Phoenix.Token.sign(MyApp.Endpoint, "user_auth", user_id))
 
 ```
 

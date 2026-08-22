@@ -20,7 +20,7 @@ defmodule FlareAppTemplate.FlareApp.Screens.Home do
 
   @impl true
   def handle_event("logout", _payload, socket) do
-    {:noreply, clear_storage(socket)}
+    {:noreply, clear_login_token(socket)}
   end
 
   defp greeting_for("guest_" <> _), do: "Welcome, guest 👋"
