@@ -10,9 +10,7 @@ import android.view.View;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.widget.FrameLayout;
-
-import com.airbnb.lottie.LottieAnimationView;
-import com.airbnb.lottie.LottieDrawable;
+import android.widget.ProgressBar;
 
 /**
  * Full-screen overlay shown during Flare screen-to-screen navigation.
@@ -38,7 +36,7 @@ public class TransitionOverlayView extends FrameLayout {
     // The overlay stays up; a popup appears asking the user to retry.
     private static final long TIMEOUT_MS = 8_000L;
 
-    private final LottieAnimationView lottieView;
+    private final ProgressBar progressBar;
     private final View errorCard;
     private final android.widget.TextView tvErrorMessage;
     private final android.widget.Button btnRetry;
@@ -65,16 +63,15 @@ public class TransitionOverlayView extends FrameLayout {
     public TransitionOverlayView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         LayoutInflater.from(context).inflate(R.layout.view_transition_overlay, this, true);
-
-        lottieView    = findViewById(R.id.lottie_transition);
+        progressBar   = findViewById(R.id.progress_transition);
         errorCard     = findViewById(R.id.card_error);
         tvErrorMessage = findViewById(R.id.tv_transition_error);
         btnRetry      = findViewById(R.id.btn_retry);
         btnSignOut    = findViewById(R.id.btn_sign_out);
         btnSignOut.setOnClickListener(v -> { if (onSignOut != null) onSignOut.run(); });
 
-        // Loop the Lottie animation while visible
-        lottieView.setRepeatCount(LottieDrawable.INFINITE);
+        // ProgressBar with android:indeterminate="true" spins continuously
+        // on its own while visible — no play/pause/repeat calls needed.
 
         setVisibility(View.GONE);
         setClickable(true); // consume all touch events while overlay is up
@@ -114,8 +111,7 @@ public class TransitionOverlayView extends FrameLayout {
         visible = true;
 
         errorCard.setVisibility(View.GONE);
-        lottieView.setVisibility(View.VISIBLE);
-        lottieView.playAnimation();
+        progressBar.setVisibility(View.VISIBLE);
 
         // Fade in
         AlphaAnimation fadeIn = new AlphaAnimation(0f, 1f);
@@ -171,8 +167,7 @@ public class TransitionOverlayView extends FrameLayout {
         visible = true;
         setVisibility(View.VISIBLE);
 
-        lottieView.cancelAnimation();
-        lottieView.setVisibility(View.GONE);
+        progressBar.setVisibility(View.GONE);
 
         tvErrorMessage.setText(message);
         errorCard.setVisibility(View.VISIBLE);
@@ -181,8 +176,7 @@ public class TransitionOverlayView extends FrameLayout {
             btnRetry.setVisibility(View.VISIBLE);
             btnRetry.setOnClickListener(v -> {
                 errorCard.setVisibility(View.GONE);
-                lottieView.setVisibility(View.VISIBLE);
-                lottieView.playAnimation();
+                progressBar.setVisibility(View.VISIBLE);
                 // Re-arm timeout for the retry attempt
                 cancelTimeout();
                 timeoutRunnable = () -> showError(message, onRetryAction);
@@ -213,7 +207,6 @@ public class TransitionOverlayView extends FrameLayout {
 
     private void doHide() {
         visible = false;
-        lottieView.cancelAnimation();
         cancelTimeout();
 
         AlphaAnimation fadeOut = new AlphaAnimation(1f, 0f);

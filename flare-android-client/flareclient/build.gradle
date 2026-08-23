@@ -41,8 +41,6 @@ dependencies {
 
     // ── For PHOENIX (WebSockets) ──
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    // ── LOTTIE (Transition animations) ──
-    implementation 'com.airbnb.android:lottie:6.4.0'
     // ── DIVKIT (Server-Driven UI) ──
     def divkit_version = "32.52.0"
     implementation "com.yandex.div:div:$divkit_version"

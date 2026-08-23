@@ -484,6 +484,11 @@ public class FlareClientActivity extends AppCompatActivity {
         // what's visible during the slide transition, so it must match immediately.
         getWindow().getDecorView().setBackgroundColor(isDarkMode ? COLOR_BG_DARK : COLOR_BG_LIGHT);
 
+        // Also color the content mount's own container — this is what shows
+        // through the transparent transition overlay the instant the old
+        // screen is cleared, before the new screen has loaded.
+        contentMount.container.setBackgroundColor(isDarkMode ? COLOR_BG_DARK : COLOR_BG_LIGHT);
+
         // ═══════════════════════════════════════════════════════════════
         //  LOCAL ENGINE SETUP
         //  Builds the engine-supplied runtime context (Channel B, protocol
@@ -817,7 +822,12 @@ public class FlareClientActivity extends AppCompatActivity {
         //   clear pending state for content only — NOT persistentMounts.
         clearPendingForMount(contentMount);
 
-        // ── Show transition overlay — old screen stays visible underneath ──────
+        // Clear the old screen immediately so the plain, theme-colored
+        // container background shows through right away instead of the old
+        // screen lingering underneath the (transparent-background) overlay.
+        runOnUiThread(() -> contentMount.container.removeAllViews());
+
+        // ── Show transition overlay ─────────────────────────────────────────
         //  before the first ever successful load, suppress the overlay's
         // own auto-timeout error card — showGiveUpDialog() (via
         // handleConnectionFailure/handleJoinFailure) owns escalation for
@@ -856,6 +866,10 @@ public class FlareClientActivity extends AppCompatActivity {
         }
         contentMount.div2View = null; // Clean slate for previous page
         clearPendingForMount(contentMount);
+
+        // Same immediate-clear behavior as navigateTo() — see comment there.
+        runOnUiThread(() -> contentMount.container.removeAllViews());
+
         // Same suppression as navigateTo() — see comment there.
         runOnUiThread(() -> transitionOverlay.show(
                 this::retryCurrentScreen,
@@ -876,6 +890,11 @@ public class FlareClientActivity extends AppCompatActivity {
      */
     private void retryCurrentScreen() {
         if (currentContentScreen == null) return;
+
+        // Clear the old screen immediately, same as navigateTo()/navigateBack() —
+        // every retry/reconnect path should flash the plain themed background,
+        // never leave stale old content visible underneath the overlay.
+        runOnUiThread(() -> contentMount.container.removeAllViews());
 
         if (contentMount.channel != null) {
             // FIX: If the channel was forcibly closed by the server (e.g. processing a stale leave
@@ -1478,6 +1497,7 @@ public class FlareClientActivity extends AppCompatActivity {
                 // Keep the window background in sync so the NEXT transition
                 // doesn't flash the old theme's color.
                 getWindow().getDecorView().setBackgroundColor(next ? COLOR_BG_DARK : COLOR_BG_LIGHT);
+                contentMount.container.setBackgroundColor(next ? COLOR_BG_DARK : COLOR_BG_LIGHT);
             });
             return; // local-only — no server push, no pending lock needed.
         }
