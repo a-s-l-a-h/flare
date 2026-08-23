@@ -93,15 +93,28 @@ class TransitionOverlay {
       };
     }
 
-    this.MIN_SHOW_MS = 200;
     this.TIMEOUT_MS  = 8000;
 
     this.visible       = false;
     this.showStartMs   = 0;
     this.timeoutHandle = null;
+    this.onErrorShown  = null;
+    this.onErrorHidden = null;
 
     // The spinner is a plain CSS-animated element defined in index.html
     // inside #flare-transition-lottie — no JS-driven animation object needed.
+  }
+
+  /**
+   * Registers callbacks fired when the error card appears/disappears —
+   * lets FlareClient hide persistent scaffold regions that are no longer
+   * actually tappable underneath this full-screen overlay, then restore
+   * them once it's gone. Deliberately NOT fired by show() (the ordinary
+   * loading spinner) — only by showError()/_doHide().
+   */
+  setOnErrorVisibilityListener(onShown, onHidden) {
+    this.onErrorShown = onShown;
+    this.onErrorHidden = onHidden;
   }
 
   show(onRetry) {
@@ -118,9 +131,7 @@ class TransitionOverlay {
   hide() {
     if (!this.visible) return;
     this._clearTimeout();
-    const remaining = this.MIN_SHOW_MS - (Date.now() - this.showStartMs);
-    if (remaining > 0) setTimeout(() => this._doHide(), remaining);
-    else this._doHide();
+    this._doHide();
   }
 
   showError(message, onRetry) {
@@ -128,6 +139,8 @@ class TransitionOverlay {
     this.visible = true;
     this.el.style.display = "flex";
     this.lottieEl.style.display = "none";
+
+    if (this.onErrorShown) this.onErrorShown();
 
     this.errorMsgEl.textContent = message;
     this.errorEl.style.display  = "block";
@@ -164,6 +177,7 @@ class TransitionOverlay {
 
   _doHide() {
     this.visible = false;
+    if (this.onErrorHidden) this.onErrorHidden();
     this.el.style.display = "none";
   }
 }
@@ -191,6 +205,10 @@ export class FlareClient {
 
     // Mirrors Android's TransitionOverlayView + slide-transition statics.
     this.transitionOverlay = new TransitionOverlay();
+    this.transitionOverlay.setOnErrorVisibilityListener(
+      () => this._setScaffoldVisible("bottom_bar", false),
+      () => this._setScaffoldVisible("bottom_bar", true)
+    );
     this.slideTransitionEnabled    = true;
     this.slideTransitionDurationMs = 500;
 
