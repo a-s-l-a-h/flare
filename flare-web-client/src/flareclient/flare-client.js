@@ -1,7 +1,6 @@
 // Location: wait_management_system/assets/web/flare-client.js
 
 import { Socket } from "phoenix";
-import lottie from "lottie-web";
 import {
   render,
   createVariable,
@@ -19,8 +18,10 @@ import { FlareExportedVariables } from "./export/flare-exported-variables";
 import { createPaneContext } from "./nativepane/flare-native-pane-context.js";
 import { initNativePaneRegistry, getCustomComponentsMap } from "./nativepane/flare-native-pane-registry.js";
 
-// Same Lottie JSON your Android res/raw/ animation uses.
-import transitionAnimationData from "./flare-transition.json";
+// Solid background colors shown the instant the old screen is cleared,
+// synced with local_dark_mode — mirrors Android's COLOR_BG_LIGHT/DARK.
+const COLOR_BG_LIGHT = "#ffffff";
+const COLOR_BG_DARK  = "#121212";
 
 // Minimal spinner shown between screen transitions.
 const SPINNER_HTML = `
@@ -99,13 +100,8 @@ class TransitionOverlay {
     this.showStartMs   = 0;
     this.timeoutHandle = null;
 
-    this.anim = lottie.loadAnimation({
-      container: this.lottieEl,
-      renderer: "svg",
-      loop: true,
-      autoplay: false,
-      animationData: transitionAnimationData
-    });
+    // The spinner is a plain CSS-animated element defined in index.html
+    // inside #flare-transition-lottie — no JS-driven animation object needed.
   }
 
   show(onRetry) {
@@ -114,7 +110,6 @@ class TransitionOverlay {
 
     this.errorEl.style.display  = "none";
     this.lottieEl.style.display = "block";
-    this.anim.play();
     this.el.style.display = "flex";
 
     this._armTimeout(onRetry);
@@ -132,7 +127,6 @@ class TransitionOverlay {
     this._clearTimeout();
     this.visible = true;
     this.el.style.display = "flex";
-    this.anim.pause();
     this.lottieEl.style.display = "none";
 
     this.errorMsgEl.textContent = message;
@@ -141,7 +135,6 @@ class TransitionOverlay {
     this.retryBtn.onclick = () => {
       this.errorEl.style.display  = "none";
       this.lottieEl.style.display = "block";
-      this.anim.play();
       this._armTimeout(onRetry);
       onRetry();
     };
@@ -155,7 +148,6 @@ class TransitionOverlay {
   forceHide() {
     this._clearTimeout();
     this.visible = false;
-    this.anim.stop();
     this.el.style.display = "none";
   }
 
@@ -172,7 +164,6 @@ class TransitionOverlay {
 
   _doHide() {
     this.visible = false;
-    this.anim.stop();
     this.el.style.display = "none";
   }
 }
@@ -244,6 +235,7 @@ export class FlareClient {
     // 2. NOW IT IS SAFE TO SET THE VARIABLE
     const isDark = localStorage.getItem("local_dark_mode") === "true";
     this._setVariable("local_dark_mode", "boolean", isDark);
+    this._syncBackgroundColor(isDark);
 
     this.debug = true;
 
@@ -267,6 +259,13 @@ export class FlareClient {
       channel: null, 
       pendingActions: new Set() 
     };
+  }
+
+  // Colors the content mount's own background — this is what shows through
+  // the transparent transition overlay the instant the old screen is
+  // cleared, before the new screen has loaded.
+  _syncBackgroundColor(isDark) {
+    this.content.el.style.backgroundColor = isDark ? COLOR_BG_DARK : COLOR_BG_LIGHT;
   }
 
   // ---------------------------------------------------------------------------
@@ -393,8 +392,11 @@ export class FlareClient {
     this._pendingScreenName = screenName;
     this._pendingParams     = params;
 
-    // Old screen stays visible underneath — _handleInit slides the new one
-    // in over it, then removes the old one and hides this overlay.
+    // Clear the old screen immediately so the plain, theme-colored
+    // background shows through right away instead of the old screen
+    // lingering underneath the (transparent-background) overlay.
+    this.content.el.innerHTML = "";
+
     this.transitionOverlay.show(() => this._retryCurrentScreen());
 
     this._joinChannel(this.content, screenName, params, () => {
@@ -410,6 +412,12 @@ export class FlareClient {
       this.content.channel.leave();
       this.content.channel = null;
     }
+
+    // Clear the old screen immediately, same as navigateTo() — every
+    // retry/reconnect path should flash the plain themed background, never
+    // leave stale old content visible underneath the overlay.
+    this.content.el.innerHTML = "";
+
     this.transitionOverlay.show(() => this._retryCurrentScreen());
     this._joinChannel(this.content, this._pendingScreenName, this._pendingParams || {}, () => {
       this._pushUrl(this._pendingScreenName, this._pendingParams || {});
@@ -780,6 +788,7 @@ export class FlareClient {
           const next = !current;
           this._setVariable("local_dark_mode", "boolean", next);
           localStorage.setItem("local_dark_mode", next ? "true" : "false");
+          this._syncBackgroundColor(next);
           return; 
         }
 

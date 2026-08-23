@@ -5,7 +5,6 @@
   },
   "dependencies": {
     "@divkitframework/divkit": "32.52.0",
-    "lottie-web": "5.13.0",
     "phoenix": "1.8.7"
   },
   "devDependencies": {
