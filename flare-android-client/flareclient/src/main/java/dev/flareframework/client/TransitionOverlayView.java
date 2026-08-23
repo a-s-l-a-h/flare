@@ -28,10 +28,6 @@ public class TransitionOverlayView extends FrameLayout {
 
     private static final String TAG = "FlareTransition";
 
-    // Minimum time the overlay stays visible even if the server responds instantly.
-    // Prevents a flash of the overlay for fast connections.
-    private static final long MIN_SHOW_MS = 200L;
-
     // After this long without a server response, we consider it a connection problem.
     // The overlay stays up; a popup appears asking the user to retry.
     private static final long TIMEOUT_MS = 8_000L;
@@ -45,6 +41,14 @@ public class TransitionOverlayView extends FrameLayout {
     // Fired when the user taps "Sign Out" on the error card. Wired once by
     // FlareClientActivity via setOnSignOutListener() — same treatment as onRetry.
     private Runnable onSignOut;
+
+    // Fired when the error card becomes visible / is fully dismissed — lets
+    // FlareClientActivity hide persistent scaffold regions that are no
+    // longer actually tappable underneath this full-screen overlay, and
+    // restore them once it's gone. Deliberately NOT fired by show() (the
+    // ordinary loading spinner) — only by showError()/doHide().
+    private Runnable onErrorShown;
+    private Runnable onErrorHidden;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private long showStartMs = 0;
@@ -143,15 +147,7 @@ public class TransitionOverlayView extends FrameLayout {
     public void hide() {
         if (!visible) return;
         cancelTimeout();
-
-        long elapsed = System.currentTimeMillis() - showStartMs;
-        long remaining = MIN_SHOW_MS - elapsed;
-
-        if (remaining > 0) {
-            handler.postDelayed(this::doHide, remaining);
-        } else {
-            doHide();
-        }
+        doHide();
     }
 
     /**
@@ -166,6 +162,8 @@ public class TransitionOverlayView extends FrameLayout {
         this.onRetry = onRetryAction;
         visible = true;
         setVisibility(View.VISIBLE);
+
+        if (onErrorShown != null) onErrorShown.run();
 
         progressBar.setVisibility(View.GONE);
 
@@ -203,11 +201,22 @@ public class TransitionOverlayView extends FrameLayout {
         this.onSignOut = onSignOut;
     }
 
+    /**
+     * Registers callbacks fired when the error card appears/disappears.
+     * Call once from FlareClientActivity.onCreate(), alongside setOnSignOutListener().
+     */
+    public void setOnErrorVisibilityListener(Runnable onErrorShown, Runnable onErrorHidden) {
+        this.onErrorShown = onErrorShown;
+        this.onErrorHidden = onErrorHidden;
+    }
+
     // ── Private ──────────────────────────────────────────────────────────────
 
     private void doHide() {
         visible = false;
         cancelTimeout();
+
+        if (onErrorHidden != null) onErrorHidden.run();
 
         AlphaAnimation fadeOut = new AlphaAnimation(1f, 0f);
         fadeOut.setDuration(150);

@@ -344,6 +344,10 @@ public class FlareClientActivity extends AppCompatActivity {
         setContentView(R.layout.activity_flare_client);
         transitionOverlay = findViewById(R.id.transition_overlay);
         transitionOverlay.setOnSignOutListener(this::clearStorage);
+        transitionOverlay.setOnErrorVisibilityListener(
+                () -> hideScaffold("bottom_bar"),
+                () -> showScaffold("bottom_bar")
+        );
 
         //  create every Mount up front ─────────────────────────
         // The content mount is the one navigateTo() swaps. The 4 findViewById
@@ -707,11 +711,11 @@ public class FlareClientActivity extends AppCompatActivity {
                     retryCurrentScreen();
                 }
                 // FIX: If the overlay is stuck showing an error card, force it back to the
-                // Lottie loading spinner so the user knows it's actively reconnecting!
+                // loading spinner so the user knows it's actively reconnecting!
                 else if (transitionOverlay.isVisible()) {
                     Log.d(TAG, "Socket reconnected while overlay showing — switching to spinner");
 
-                    // Hide the error card and show the Lottie animation
+                    // Hide the error card and show the spinner again
                     transitionOverlay.show(
                             this::retryCurrentScreen,
                             hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
@@ -960,6 +964,12 @@ public class FlareClientActivity extends AppCompatActivity {
         if (giveUpDialog != null && giveUpDialog.isShowing()) {
             return;
         }
+
+        // This is a fully blocking, modal failure state — hide persistent
+        // scaffold regions too. (transitionOverlay.hide() just above already
+        // restored them if it was showing its own error card — this
+        // re-hides for the dialog, which is even more severe.)
+        hideScaffold("bottom_bar");
 
         giveUpDialog = new AlertDialog.Builder(this)
                 .setTitle("Something went wrong")
