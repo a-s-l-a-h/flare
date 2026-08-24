@@ -1,0 +1,167 @@
+/* ═══════════════════════════════════════════════════════════════
+   High-Polish Dynamic Island for Flare Web
+   Matches AmbientIslandView.java on Android:
+   - Idle width 115px, Active width 195px
+   - Obsidian glass background with specular rim
+   - 3-orb pulsing wave + glowing holographic beam track
+   - Spring overshoot and smooth decay transitions
+   ═══════════════════════════════════════════════════════════════ */
+
+#flare-ambient-island {
+  position: fixed;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 115px;
+  height: 36px;
+  background: rgba(16, 16, 23, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  z-index: 1200; /* Stays above DivKit renders and transition overlay */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  transition: width 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s ease;
+  pointer-events: none; /* Never blocks touches/clicks */
+  user-select: none;
+  overflow: hidden;
+}
+
+/* ── IDLE CONTAINER ── */
+#flare-island-idle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+#flare-island-idle-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9b51e0; /* Flare Purple */
+  box-shadow: 0 0 8px rgba(155, 81, 224, 0.6);
+  animation: flare-idle-pulse 2s infinite ease-in-out;
+}
+
+#flare-island-idle-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.93);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* ── ACTIVE CONTAINER ── */
+#flare-island-active {
+  display: none;
+  opacity: 0;
+  transform: scale(0.85);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+/* 3-Orb pulsing wave row */
+.flare-island-orbs-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.flare-orb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.flare-orb-1 {
+  background: #8e44ad;
+  box-shadow: 0 0 6px rgba(142, 68, 173, 0.7);
+}
+
+.flare-orb-2 {
+  background: #00e5ff;
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.7);
+}
+
+.flare-orb-3 {
+  background: #ff2a85;
+  box-shadow: 0 0 6px rgba(255, 42, 133, 0.7);
+}
+
+/* Holographic beam sweep track */
+.flare-island-beam-track {
+  width: 110px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  margin-top: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.flare-island-beam {
+  width: 45px;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #00e5ff, #a855f7, transparent);
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* ── LOADING ACTIVE STATE ── */
+#flare-ambient-island.loading {
+  width: 195px;
+}
+
+#flare-ambient-island.loading #flare-island-idle {
+  display: none;
+  opacity: 0;
+}
+
+#flare-ambient-island.loading #flare-island-active {
+  display: flex;
+  opacity: 1;
+  transform: scale(1);
+}
+
+#flare-ambient-island.loading .flare-orb-1 {
+  animation: flare-orb-wave 0.7s infinite ease-in-out;
+}
+
+#flare-ambient-island.loading .flare-orb-2 {
+  animation: flare-orb-wave 0.7s infinite ease-in-out 0.16s;
+}
+
+#flare-ambient-island.loading .flare-orb-3 {
+  animation: flare-orb-wave 0.7s infinite ease-in-out 0.32s;
+}
+
+#flare-ambient-island.loading .flare-island-beam {
+  animation: flare-beam-sweep 0.9s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+}
+
+/* Keyframes matching Android Animators */
+@keyframes flare-idle-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes flare-orb-wave {
+  0%, 100% { transform: scaleY(0.6); }
+  50% { transform: scaleY(1.4); }
+}
+
+@keyframes flare-beam-sweep {
+  0%   { transform: translateX(-45px); }
+  100% { transform: translateX(110px); }
+}

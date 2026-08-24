@@ -7,6 +7,7 @@ import {
   createGlobalVariablesController
 } from "@divkitframework/divkit/dist/client";
 import "@divkitframework/divkit/dist/client.css";
+import { AmbientIsland } from "./island/ambient-island.js";
 // ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────────
 // New, self-contained plugin/task/export subsystem — see
 // flare/LOCAL_ENGINE_PROTOCOL.md for the full cross-platform contract.
@@ -117,13 +118,15 @@ class TransitionOverlay {
     this.onErrorHidden = onHidden;
   }
 
-  show(onRetry) {
+show(onRetry) {
     this.showStartMs = Date.now();
     this.visible = true;
 
     this.errorEl.style.display  = "none";
     this.lottieEl.style.display = "block";
     this.el.style.display = "flex";
+
+    AmbientIsland.setLoading(true); // 🔥 Trigger Island Animation
 
     this._armTimeout(onRetry);
   }
@@ -140,6 +143,8 @@ class TransitionOverlay {
     this.el.style.display = "flex";
     this.lottieEl.style.display = "none";
 
+    AmbientIsland.setLoading(false); // 🔥 Stop Island on Error
+
     if (this.onErrorShown) this.onErrorShown();
 
     this.errorMsgEl.textContent = message;
@@ -148,6 +153,7 @@ class TransitionOverlay {
     this.retryBtn.onclick = () => {
       this.errorEl.style.display  = "none";
       this.lottieEl.style.display = "block";
+      AmbientIsland.setLoading(true);
       this._armTimeout(onRetry);
       onRetry();
     };
@@ -161,6 +167,7 @@ class TransitionOverlay {
   forceHide() {
     this._clearTimeout();
     this.visible = false;
+    AmbientIsland.setLoading(false);
     this.el.style.display = "none";
   }
 
@@ -177,6 +184,7 @@ class TransitionOverlay {
 
   _doHide() {
     this.visible = false;
+    AmbientIsland.setLoading(false); // 🔥 Graceful stop on content load
     if (this.onErrorHidden) this.onErrorHidden();
     this.el.style.display = "none";
   }

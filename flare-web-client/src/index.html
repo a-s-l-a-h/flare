@@ -27,17 +27,29 @@
   #flare-end_drawer > div > div {
     pointer-events: auto;
   }
-
-  /* Transition-overlay top loading bar */
-  @keyframes flare-topbar-sweep {
-    0%   { transform: translateX(-100%); }
-    100% { transform: translateX(350%); }
-  }
 </style>
 </head>
 <body style="margin:0;padding:0;background:#0f0f1a;font-family:sans-serif;height:100%;overflow:hidden;">
 
   <div id="flare-login" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;"></div>
+
+  <!-- High-Polish Ambient Island (Mirroring Android AmbientIslandView) -->
+  <div id="flare-ambient-island">
+    <div id="flare-island-idle">
+      <div id="flare-island-idle-dot"></div>
+      <div id="flare-island-idle-label">Flare</div>
+    </div>
+    <div id="flare-island-active">
+      <div class="flare-island-orbs-row">
+        <div class="flare-orb flare-orb-1"></div>
+        <div class="flare-orb flare-orb-2"></div>
+        <div class="flare-orb flare-orb-3"></div>
+      </div>
+      <div class="flare-island-beam-track">
+        <div class="flare-island-beam"></div>
+      </div>
+    </div>
+  </div>
 
   <div id="flare-app" style="width:100%;height:100vh;overflow:hidden;position:fixed;top:0;left:0;display:none;flex-direction:column;">
     <div id="flare-top_bar" style="flex-shrink:0;"></div>
@@ -48,9 +60,7 @@
   <!-- Transition overlay — Lottie animation shown during content navigation.
        Old screen stays visible underneath (mirrors Android TransitionOverlayView). -->
   <div id="flare-transition-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:800;align-items:center;justify-content:center;">
-    <div id="flare-transition-lottie" style="position:absolute;top:0;left:0;width:100%;height:3px;overflow:hidden;background:rgba(255,255,255,0.15);">
-      <div style="width:35%;height:100%;background:#8e44ad;animation:flare-topbar-sweep 1s ease-in-out infinite;"></div>
-    </div>
+    <div id="flare-transition-lottie" style="position:absolute;top:0;left:0;width:100%;height:0px;overflow:hidden;background:rgba(255,255,255,0.15);"></div>
     <div id="flare-transition-error" style="display:none;background:#fff;border-radius:16px;padding:24px;max-width:320px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.15);">
       <div id="flare-transition-error-msg" style="font-size:14px;color:#333;margin-bottom:16px;"></div>
       <button id="flare-transition-retry" style="padding:10px 20px;border:none;border-radius:10px;background:#8e44ad;color:#fff;font-weight:bold;cursor:pointer;">Retry</button>
@@ -66,13 +76,10 @@
        its own internal visibility/animation (e.g. "@{flare_drawer_open ? ...}"). -->
   <div id="flare-drawer" style="pointer-events:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:900;overflow:hidden;"></div>
   <div id="flare-end_drawer" style="pointer-events:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:900;overflow:hidden;"></div>
+  <div id="flare-overlay" style="pointer-events:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;overflow:hidden;"></div>
 
-  <div id="flare-overlay" style="pointer-events:none; position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;overflow:hidden;"></div>
-
-  <!-- Note: added pointer-events:none here inline just to be safe -->
-  <!-- <div id="flare-overlay" style="pointer-events:none; position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;overflow:hidden;"></div> -->
-<!-- all 6 scaffold  -->
-  <!-- <script>
+  <!-- all 6 scaffold reference
+  <script>
     window.__flare__ = {
       wsUrl: "/socket",
       token: null,
@@ -86,21 +93,20 @@
       ],
       scaffoldRegions: ["bottom_bar", "top_bar", "drawer", "end_drawer"]
     };
-  </script> -->
+  </script>
+  -->
 
-  <!-- this only 2 region   -->
-   <script>
-  window.__flare__ = {
-    wsUrl: "/socket",
-    token: null,
-    entryScreen: "home",
-    persistentScreens: [
-      { screen: "bottom_bar", region: "bottom_bar" }
-    ],
-    scaffoldRegions: ["bottom_bar"]
-  };
-</script>
-
-  
+  <!-- Active 2-region config -->
+  <script>
+    window.__flare__ = {
+      wsUrl: "/socket",
+      token: null,
+      entryScreen: "home",
+      persistentScreens: [
+        { screen: "bottom_bar", region: "bottom_bar" }
+      ],
+      scaffoldRegions: ["bottom_bar"]
+    };
+  </script>
 </body>
 </html>
