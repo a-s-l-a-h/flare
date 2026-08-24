@@ -203,14 +203,12 @@ export class FlareClient {
     this.content = this._makeMount(config.rootEl, null);
     this.regions = {};
 
-    // Mirrors Android's TransitionOverlayView + slide-transition statics.
+    // Mirrors Android's TransitionOverlayView.
     this.transitionOverlay = new TransitionOverlay();
     this.transitionOverlay.setOnErrorVisibilityListener(
       () => this._setScaffoldVisible("bottom_bar", false),
       () => this._setScaffoldVisible("bottom_bar", true)
     );
-    this.slideTransitionEnabled    = true;
-    this.slideTransitionDurationMs = 500;
 
     // Set right before we intentionally call socket.disconnect() (logout),
     // so the onClose handler below knows not to show a "reconnecting" error
@@ -410,10 +408,10 @@ export class FlareClient {
     this._pendingScreenName = screenName;
     this._pendingParams     = params;
 
-    // Clear the old screen immediately so the plain, theme-colored
-    // background shows through right away instead of the old screen
-    // lingering underneath the (transparent-background) overlay.
-    this.content.el.innerHTML = "";
+    // NOTE: the old screen is intentionally left in the DOM here — it
+    // stays visible but frozen (fully touch-blocked by transitionOverlay
+    // below) until the new screen's init envelope arrives and
+    // _handleInit() swaps it in instantly. Zero artificial delay.
 
     this.transitionOverlay.show(() => this._retryCurrentScreen());
 
@@ -431,10 +429,7 @@ export class FlareClient {
       this.content.channel = null;
     }
 
-    // Clear the old screen immediately, same as navigateTo() — every
-    // retry/reconnect path should flash the plain themed background, never
-    // leave stale old content visible underneath the overlay.
-    this.content.el.innerHTML = "";
+    // Old screen intentionally left visible — see navigateTo() comment.
 
     this.transitionOverlay.show(() => this._retryCurrentScreen());
     this._joinChannel(this.content, this._pendingScreenName, this._pendingParams || {}, () => {
@@ -588,7 +583,7 @@ export class FlareClient {
     }
 
     if (mount === this.content) {
-      // ── Content: slide new screen in over the old one ─────────────────
+      // ── Content: instant swap over the old screen — no slide, no delay ──
       const oldChildren = Array.from(mount.el.children);
 
       const newWrapper = document.createElement("div");
@@ -607,20 +602,8 @@ export class FlareClient {
       const divkitRoot = newWrapper.firstElementChild;
       if (divkitRoot) { divkitRoot.style.width = "100%"; divkitRoot.style.height = "100%"; }
 
-      const finish = () => {
-        oldChildren.forEach(child => child.remove());
-        this.transitionOverlay.hide();
-      };
-
-      if (this.slideTransitionEnabled) {
-        const anim = newWrapper.animate(
-          [{ transform: "translateX(100%)" }, { transform: "translateX(0)" }],
-          { duration: this.slideTransitionDurationMs, easing: "cubic-bezier(0.25,0.8,0.5,1)", fill: "forwards" }
-        );
-        anim.onfinish = finish;
-      } else {
-        finish();
-      }
+      oldChildren.forEach(child => child.remove());
+      this.transitionOverlay.hide();
     } else {
       // Persistent regions: unchanged, immediate render, no overlay/slide.
       mount.el.innerHTML = "";
