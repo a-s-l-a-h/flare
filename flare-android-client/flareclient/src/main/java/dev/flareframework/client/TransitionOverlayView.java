@@ -11,6 +11,7 @@ import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
+import dev.flareframework.client.island.AmbientIslandView;
 
 /**
  * Full-screen overlay shown during Flare screen-to-screen navigation.
@@ -33,6 +34,9 @@ public class TransitionOverlayView extends FrameLayout {
     private static final long TIMEOUT_MS = 8_000L;
 
     private final ProgressBar progressBar;
+    // Optional — wired once from FlareClientActivity via setAmbientIsland().
+    // Purely cosmetic; if never set, everything behaves exactly as before.
+    private AmbientIslandView ambientIsland;
     private final View errorCard;
     private final android.widget.TextView tvErrorMessage;
     private final android.widget.Button btnRetry;
@@ -119,6 +123,7 @@ public class TransitionOverlayView extends FrameLayout {
 
         // Instant show — no fade, no artificial delay.
         setVisibility(View.VISIBLE);
+        if (ambientIsland != null) ambientIsland.setLoading(true);
 
         // Arm timeout
         cancelTimeout();
@@ -165,12 +170,14 @@ public class TransitionOverlayView extends FrameLayout {
 
         tvErrorMessage.setText(message);
         errorCard.setVisibility(View.VISIBLE);
+        if (ambientIsland != null) ambientIsland.setLoading(false);
 
         if (onRetryAction != null) {
             btnRetry.setVisibility(View.VISIBLE);
             btnRetry.setOnClickListener(v -> {
                 errorCard.setVisibility(View.GONE);
                 progressBar.setVisibility(View.VISIBLE);
+                if (ambientIsland != null) ambientIsland.setLoading(true);
                 // Re-arm timeout for the retry attempt
                 cancelTimeout();
                 timeoutRunnable = () -> showError(message, onRetryAction);
@@ -196,6 +203,10 @@ public class TransitionOverlayView extends FrameLayout {
     public void setOnSignOutListener(Runnable onSignOut) {
         this.onSignOut = onSignOut;
     }
+    /** Wires the top ambient island so show()/hide()/showError() can toggle it. Optional. */
+    public void setAmbientIsland(AmbientIslandView island) {
+        this.ambientIsland = island;
+    }
 
     /**
      * Registers callbacks fired when the error card appears/disappears.
@@ -211,6 +222,7 @@ public class TransitionOverlayView extends FrameLayout {
     private void doHide() {
         visible = false;
         cancelTimeout();
+        if (ambientIsland != null) ambientIsland.setLoading(false);
 
         if (onErrorHidden != null) onErrorHidden.run();
 

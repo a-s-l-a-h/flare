@@ -95,6 +95,7 @@ import java.util.HashMap;
 import java.util.Arrays;
 import java.util.List;
 import com.yandex.div.core.DivViewFacade;
+import dev.flareframework.client.island.AmbientIslandView;
 
 public class FlareClientActivity extends AppCompatActivity {
 
@@ -344,6 +345,10 @@ public class FlareClientActivity extends AppCompatActivity {
         setContentView(R.layout.activity_flare_client);
         transitionOverlay = findViewById(R.id.transition_overlay);
         transitionOverlay.setOnSignOutListener(this::clearStorage);
+
+        // Cosmetic-only ambient island — see island/AmbientIslandView.java.
+        AmbientIslandView ambientIsland = findViewById(R.id.ambient_island);
+        transitionOverlay.setAmbientIsland(ambientIsland);
         transitionOverlay.setOnErrorVisibilityListener(
                 () -> hideScaffold("bottom_bar"),
                 () -> showScaffold("bottom_bar")
