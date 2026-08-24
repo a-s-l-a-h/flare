@@ -123,11 +123,10 @@ public class FlareClientActivity extends AppCompatActivity {
     // Layout JSON can use: "@{local_flare_pending ? 0.5 : 1.0}" to dim buttons.
     public static final String PENDING_VAR = "local_flare_pending";
 
-    // ── Window background colors, kept in sync with local_dark_mode ─────────
-    // These are what shows through during the slide transition (see handleInit),
-    // so they must match your dark-mode palette, not the system theme.
-    private static final int COLOR_BG_LIGHT = 0xFFFFFFFF;
-    private static final int COLOR_BG_DARK  = 0xFF121212;
+    // ── Neutral Obsidian Surface Colors ────────────────────────────────────
+    // High-polish neutral base that visually blends with both light cards and dark cards
+    private static final int COLOR_BG_LIGHT = 0xFFF4F5F9; // Soft porcelain light base
+    private static final int COLOR_BG_DARK  = 0xFF0E0E14; // Deep obsidian dark base
 
     // ── SLIDE TRANSITION — developer-tunable, global for the whole app ──────
     // Set these from anywhere (e.g. Application.onCreate()) before any screen
