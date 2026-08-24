@@ -34,12 +34,12 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <dev.flareframework.client.island.AmbientIslandView
+<dev.flareframework.client.island.AmbientIslandView
         android:id="@+id/ambient_island"
-        android:layout_width="130dp"
-        android:layout_height="36dp"
+        android:layout_width="115dp"
+        android:layout_height="32dp"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="6dp"
         android:elevation="12dp" />
 
 </FrameLayout>

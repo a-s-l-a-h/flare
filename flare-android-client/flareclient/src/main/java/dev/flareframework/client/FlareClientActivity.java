@@ -342,7 +342,22 @@ public class FlareClientActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate");
 
+        // 1. Edge-to-Edge Window: Draw behind the OS status bar
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+
         setContentView(R.layout.activity_flare_client);
+
+        // 2. Automatically push SDUI content down by the status bar height (no JSON top padding needed!)
+        FrameLayout flContent = findViewById(R.id.fl_content);
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(flContent, (v, insets) -> {
+            androidx.core.graphics.Insets statusBar = insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.statusBars()
+            );
+            v.setPadding(0, statusBar.top, 0, 0);
+            return insets;
+        });
+
         transitionOverlay = findViewById(R.id.transition_overlay);
         transitionOverlay.setOnSignOutListener(this::clearStorage);
 
