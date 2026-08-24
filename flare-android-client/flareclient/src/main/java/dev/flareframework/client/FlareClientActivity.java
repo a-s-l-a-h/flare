@@ -826,10 +826,11 @@ public class FlareClientActivity extends AppCompatActivity {
         //   clear pending state for content only — NOT persistentMounts.
         clearPendingForMount(contentMount);
 
-        // Clear the old screen immediately so the plain, theme-colored
-        // container background shows through right away instead of the old
-        // screen lingering underneath the (transparent-background) overlay.
-        runOnUiThread(() -> contentMount.container.removeAllViews());
+        // NOTE: the old screen is intentionally left visible in
+        // contentMount.container here. It stays on-screen (frozen, fully
+        // touch-blocked by transitionOverlay below) until the new screen's
+        // init envelope arrives and handleInit() swaps it in instantly —
+        // no artificial delay, no slide. See Step 4 in handleInit().
 
         // ── Show transition overlay ─────────────────────────────────────────
         //  before the first ever successful load, suppress the overlay's
@@ -871,8 +872,7 @@ public class FlareClientActivity extends AppCompatActivity {
         contentMount.div2View = null; // Clean slate for previous page
         clearPendingForMount(contentMount);
 
-        // Same immediate-clear behavior as navigateTo() — see comment there.
-        runOnUiThread(() -> contentMount.container.removeAllViews());
+        // Old screen intentionally left visible — see navigateTo() comment.
 
         // Same suppression as navigateTo() — see comment there.
         runOnUiThread(() -> transitionOverlay.show(
@@ -895,10 +895,7 @@ public class FlareClientActivity extends AppCompatActivity {
     private void retryCurrentScreen() {
         if (currentContentScreen == null) return;
 
-        // Clear the old screen immediately, same as navigateTo()/navigateBack() —
-        // every retry/reconnect path should flash the plain themed background,
-        // never leave stale old content visible underneath the overlay.
-        runOnUiThread(() -> contentMount.container.removeAllViews());
+        // Old screen intentionally left visible — see navigateTo() comment.
 
         if (contentMount.channel != null) {
             // FIX: If the channel was forcibly closed by the server (e.g. processing a stale leave
@@ -1240,40 +1237,19 @@ public class FlareClientActivity extends AppCompatActivity {
             }
 
             // ── Step 4: Show it — into THIS mount's container, not a shared one ──
-            // Don't remove old views yet! Add the new screen on top.
+            // Instant swap: add the new screen, then remove the old one(s)
+            // immediately. No slide, no artificial delay — transitionOverlay
+            // already covered/blocked the old screen for the entire load.
             int oldViewsCount = mount.container.getChildCount();
             mount.container.addView(div2View, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
             ));
-
-            // ── Slide the new screen in from the right ──
-            // Only the CONTENT mount slides. We slide it in OVER the old screen,
-            // and only remove the old screen + hide the Lottie overlay AFTER it finishes.
-            if (mount == contentMount && SLIDE_TRANSITION_ENABLED) {
-                float screenWidth = getResources().getDisplayMetrics().widthPixels;
-                div2View.setTranslationX(screenWidth);
-                div2View.animate()
-                        .translationX(0f)
-                        .setDuration(SLIDE_TRANSITION_DURATION_MS)
-                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                        .withEndAction(() -> {
-                            // 1. Remove the old screen(s) now that they are covered
-                            for (int i = 0; i < oldViewsCount; i++) {
-                                mount.container.removeViewAt(0);
-                            }
-                            // 2. Hide the loading overlay now that the new page is in place
-                            transitionOverlay.hide();
-                        })
-                        .start();
-            } else {
-                // No animation for this mount, or slides disabled
-                for (int i = 0; i < oldViewsCount; i++) {
-                    mount.container.removeViewAt(0);
-                }
-                if (mount == contentMount) {
-                    transitionOverlay.hide();
-                }
+            for (int i = 0; i < oldViewsCount; i++) {
+                mount.container.removeViewAt(0);
+            }
+            if (mount == contentMount) {
+                transitionOverlay.hide();
             }
 
             // SAFETY CATCH: The page has successfully rendered.
@@ -1422,25 +1398,9 @@ public class FlareClientActivity extends AppCompatActivity {
                         ViewGroup.LayoutParams.MATCH_PARENT
                 ));
 
-                if (mount == contentMount && SLIDE_TRANSITION_ENABLED) {
-                    float screenWidth = getResources().getDisplayMetrics().widthPixels;
-                    div2View.setTranslationX(screenWidth);
-                    div2View.animate()
-                            .translationX(0f)
-                            .setDuration(SLIDE_TRANSITION_DURATION_MS)
-                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                            .withEndAction(() -> {
-                                // Remove old screen only when slide completes
-                                for (int i = 0; i < oldViewsCount; i++) {
-                                    mount.container.removeViewAt(0);
-                                }
-                            })
-                            .start();
-                } else {
-                    // Remove instantly if animations are off
-                    for (int i = 0; i < oldViewsCount; i++) {
-                        mount.container.removeViewAt(0);
-                    }
+                // Instant swap — no slide animation, no artificial delay.
+                for (int i = 0; i < oldViewsCount; i++) {
+                    mount.container.removeViewAt(0);
                 }
             }
         } catch (Exception e) {

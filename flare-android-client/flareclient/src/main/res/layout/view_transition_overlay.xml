@@ -11,14 +11,16 @@
     android:layout_height="match_parent"
     android:background="#00000000">
 
-    <!-- Loading spinner — shown while loading -->
+    <!-- Top linear loading bar — subtle, unobtrusive, shown while loading -->
     <ProgressBar
         android:id="@+id/progress_transition"
-        style="?android:attr/progressBarStyleLarge"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:indeterminate="true" />
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_gravity="top"
+        android:indeterminate="true"
+        android:indeterminateTint="#8E44AD"
+        android:indeterminateTintMode="src_in" />
 
     <!-- Error card — shown on timeout or connection failure -->
     <LinearLayout

@@ -117,11 +117,7 @@ public class TransitionOverlayView extends FrameLayout {
         errorCard.setVisibility(View.GONE);
         progressBar.setVisibility(View.VISIBLE);
 
-        // Fade in
-        AlphaAnimation fadeIn = new AlphaAnimation(0f, 1f);
-        fadeIn.setDuration(120);
-        fadeIn.setFillAfter(true);
-        startAnimation(fadeIn);
+        // Instant show — no fade, no artificial delay.
         setVisibility(View.VISIBLE);
 
         // Arm timeout
@@ -218,18 +214,8 @@ public class TransitionOverlayView extends FrameLayout {
 
         if (onErrorHidden != null) onErrorHidden.run();
 
-        AlphaAnimation fadeOut = new AlphaAnimation(1f, 0f);
-        fadeOut.setDuration(150);
-        fadeOut.setFillAfter(true);
-        fadeOut.setAnimationListener(new Animation.AnimationListener() {
-            @Override public void onAnimationStart(Animation a) {}
-            @Override public void onAnimationRepeat(Animation a) {}
-            @Override public void onAnimationEnd(Animation a) {
-                setVisibility(View.GONE);
-                clearAnimation();
-            }
-        });
-        startAnimation(fadeOut);
+        // Instant hide — no fade, no artificial delay.
+        setVisibility(View.GONE);
 
         Log.d(TAG, "hide()");
     }
