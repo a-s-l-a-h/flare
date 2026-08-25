@@ -24,12 +24,12 @@
               "content_alignment_vertical": "center",
               "margins": { "bottom": 24 },
               "items": [
-                { "type": "text", "text": "📡", "font_size": 40, "text_alignment_horizontal": "center" }
+                { "type": "text", "text": "@{local_connection_lost_icon}", "font_size": 40, "text_alignment_horizontal": "center" }
               ]
             },
             {
               "type": "text",
-              "text": "No internet connection",
+              "text": "@{local_connection_lost_title}",
               "font_size": 20,
               "font_weight": "bold",
               "text_color": "@{local_dark_mode ? '#F0F0F5' : '#181818'}",

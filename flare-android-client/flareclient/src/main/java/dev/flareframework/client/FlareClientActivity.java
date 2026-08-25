@@ -144,6 +144,7 @@ public class FlareClientActivity extends AppCompatActivity {
     private static final int MAX_CONTENT_JOIN_FAILURES  = 2;
     private int reconnectFailureStreak   = 0;
     private int contentJoinFailureStreak = 0;
+    private boolean isResumingFromBackground = false;
 
     // Cached parsed JSON for the two local fallback screens. null means the
     // asset couldn't be loaded — the corresponding show...Fallback() method
@@ -447,27 +448,35 @@ public class FlareClientActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        // ❌ REMOVE the disconnect command!
-        // We want to keep the socket alive so typed text isn't lost on quick app switches.
-        Log.d(TAG, "onStop: app backgrounded, but keeping socket alive");
-
-        // Tell the socket the app is hidden so it doesn't try to aggressively
-        // reconnect in the background IF the network drops, but DO NOT kill the active connection.
+        Log.d(TAG, "onStop: app backgrounded");
+        isResumingFromBackground = true;
         if (socket != null) {
-            // (Optional) If you want, you can add a method to PhoenixSocket just to set pageHidden=true,
-            // but simply commenting out onActivityPause() is the standard Android way.
+            socket.onActivityPause();
         }
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        Log.d(TAG, "onStart: app foregrounded");
+        Log.d(TAG, "onStart: app foregrounded (isResumingFromBackground=" + isResumingFromBackground + ")");
 
-        // If the OS *did* kill the connection because the app was in the background
-        // for 10+ minutes, this will force it to wake up and reconnect.
-        if (socket != null && !socket.isConnected()) {
-            socket.connect();
+        if (socket != null) {
+            if (!socket.isConnected()) {
+                // Connection was dropped by the OS in the background:
+                // Show the "Welcome back" resumption screen with centered Hero Island
+                if (isResumingFromBackground) {
+                    showConnectionLostFallback(null, this::retryCurrentScreen);
+                }
+                socket.onActivityResume();
+            } else {
+                // Socket is STILL alive (quick app switch):
+                // Instant resume with zero overlay interruption!
+                isResumingFromBackground = false;
+                if (transitionOverlay.isVisible()) {
+                    transitionOverlay.resetFallback();
+                    transitionOverlay.hide();
+                }
+            }
         }
     }
 
@@ -946,22 +955,29 @@ public class FlareClientActivity extends AppCompatActivity {
      */
     private void handleConnectionFailure(String message) {
         reconnectFailureStreak++;
-        Log.w(TAG, "handleConnectionFailure: streak=" + reconnectFailureStreak);
+        Log.w(TAG, "handleConnectionFailure: streak=" + reconnectFailureStreak + " isResuming=" + isResumingFromBackground);
 
         if (!hasEverLoadedContent) {
-            // Pre-first-load phase (e.g. app reopened while already logged in,
-            // but the server is unreachable). Only two UI states are allowed
-            // here: the loading spinner (already up from show()), and — once
-            // the streak crosses the threshold — the blocking give-up dialog.
-            // No transient error cards in between.
             if (reconnectFailureStreak >= MAX_RECONNECT_FAILURES) {
                 showGiveUpDialog("We're having trouble connecting. This can happen if your " +
                         "session is no longer valid. You can try again or sign out.");
             }
-            // else: do nothing — keep the spinner up, let it keep retrying quietly.
+        } else if (isResumingFromBackground) {
+            // Background resume: let the Hero Island continue its animation;
+            // only escalate to the hard "No internet" screen on attempt 3
+            if (reconnectFailureStreak >= 3) {
+                isResumingFromBackground = false;
+                showConnectionLostFallback(message, this::retryCurrentScreen);
+            }
         } else {
-            // Screen has loaded before — this is just background flakiness.
-            showConnectionLostFallback(message, this::retryCurrentScreen);
+            // Active in-app drop: only escalate to full overlay on attempt 3
+            if (reconnectFailureStreak >= 3) {
+                showConnectionLostFallback(message, this::retryCurrentScreen);
+            } else {
+                if (ambientIsland != null) {
+                    ambientIsland.setLoading(true);
+                }
+            }
         }
     }
 
@@ -991,19 +1007,45 @@ public class FlareClientActivity extends AppCompatActivity {
      *                which calls retryConnection() below.
      */
     private void showConnectionLostFallback(String message, Runnable onRetry) {
-        if (ambientIsland != null) ambientIsland.flyToTop();
         JSONObject layoutJson = loadConnectionLostLayoutJson();
         if (layoutJson == null) {
+            if (ambientIsland != null) ambientIsland.flyToTop();
             transitionOverlay.showError(message, onRetry);
             return;
         }
         try {
-            globalVarsController.putOrUpdate(new Variable.StringVariable("local_connection_lost_message", message));
+            String icon;
+            String title;
+            String desc;
+
+            if (isResumingFromBackground) {
+                // Resume state: friendly welcome back screen with centered Hero Island
+                icon = "✨";
+                title = "Welcome back";
+                desc = "Resuming your session and syncing...";
+                if (ambientIsland != null) {
+                    ambientIsland.setupInitialHeroState();
+                }
+            } else {
+                // Hard connection outage: standard error
+                icon = "📡";
+                title = "No internet connection";
+                desc = (message != null && !message.isEmpty()) ? message : "Please check your network connection.";
+                if (ambientIsland != null) {
+                    ambientIsland.flyToTop();
+                }
+            }
+
+            globalVarsController.putOrUpdate(new Variable.StringVariable("local_connection_lost_icon", icon));
+            globalVarsController.putOrUpdate(new Variable.StringVariable("local_connection_lost_title", title));
+            globalVarsController.putOrUpdate(new Variable.StringVariable("local_connection_lost_message", desc));
+
             FlareDivViewFactory factory = new FlareDivViewFactory(div2Context, globalVarsController);
             Div2View view = factory.createView(layoutJson);
             transitionOverlay.showConnectionLostFallback(view);
         } catch (Exception e) {
             Log.e(TAG, "Failed to render connection_lost_screen — falling back to native error card", e);
+            if (ambientIsland != null) ambientIsland.flyToTop();
             transitionOverlay.showError(message, onRetry);
         }
     }
@@ -1341,18 +1383,18 @@ public class FlareClientActivity extends AppCompatActivity {
             Div2View div2View = factory.createView(parsed.layout);
             mount.div2View = div2View;
 
-            // Mark that content has successfully loaded at least once.
+            // Content successfully loaded: clear resume state and glide island up
             if (mount == contentMount) {
                 hasEverLoadedContent = true;
+                isResumingFromBackground = false;
+                reconnectFailureStreak = 0;
+                contentJoinFailureStreak = 0;
                 if (ambientIsland != null) {
-                    ambientIsland.flyToTop(); // Glide smoothly up to top status bar
+                    ambientIsland.flyToTop();
                 }
             }
 
-            // ── Step 4: Show it — into THIS mount's container, not a shared one ──
-            // Instant swap: add the new screen, then remove the old one(s)
-            // immediately. No slide, no artificial delay — transitionOverlay
-            // already covered/blocked the old screen for the entire load.
+            // ── Step 4: Instant zero-lag view swap ──
             int oldViewsCount = mount.container.getChildCount();
             mount.container.addView(div2View, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1362,6 +1404,7 @@ public class FlareClientActivity extends AppCompatActivity {
                 mount.container.removeViewAt(0);
             }
             if (mount == contentMount) {
+                transitionOverlay.resetFallback();
                 transitionOverlay.hide();
             }
 
