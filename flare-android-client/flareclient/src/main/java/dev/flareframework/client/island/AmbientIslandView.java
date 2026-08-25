@@ -1,10 +1,11 @@
 package dev.flareframework.client.island;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
@@ -22,14 +23,14 @@ import android.widget.TextView;
 /**
  * High-polish Dynamic Island for Flare.
  * Features 3-dot staggered wave morphing, holographic gradient sweeps,
- * and smooth, non-abrupt completion transitions.
+ * center-to-top intro launch flight, and smooth completion transitions.
  */
 public class AmbientIslandView extends FrameLayout {
 
     private static final int IDLE_WIDTH_DP = 115;
     private static final int IDLE_HEIGHT_DP = 36;
     private static final int ACTIVE_WIDTH_DP = 195;
-    private static final long MIN_DISPLAY_MS = 600L; // Prevents 1-frame flicker on instant loads
+    private static final long MIN_DISPLAY_MS = 600L;
 
     private LinearLayout idleContainer;
     private LinearLayout activeContainer;
@@ -40,8 +41,10 @@ public class AmbientIslandView extends FrameLayout {
     private AnimatorSet waveAnimatorSet;
     private ObjectAnimator beamAnimator;
     private ValueAnimator widthAnimator;
+    private ObjectAnimator flyAnimator;
 
     private boolean isLoading = false;
+    private boolean isHeroCentered = false;
     private long loadStartTime = 0L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable pendingExitRunnable = null;
@@ -77,11 +80,10 @@ public class AmbientIslandView extends FrameLayout {
         idleContainer.setOrientation(LinearLayout.HORIZONTAL);
         idleContainer.setGravity(Gravity.CENTER);
 
-        // Idle gentle breathing dot
         View idleDot = new View(getContext());
         GradientDrawable dotBg = new GradientDrawable();
         dotBg.setShape(GradientDrawable.OVAL);
-        dotBg.setColor(0xFF9B51E0); // Flare Signature Purple
+        dotBg.setColor(0xFF9B51E0); // Flare Purple
         idleDot.setBackground(dotBg);
         LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(7), dp(7));
         dotLp.setMargins(0, 0, dp(8), 0);
@@ -119,7 +121,7 @@ public class AmbientIslandView extends FrameLayout {
 
         activeContainer.addView(orbsRow, new LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
 
-        // 2. Bottom row: Subtle glowing beam track
+        // 2. Bottom row: Glowing beam track
         FrameLayout beamTrack = new FrameLayout(getContext());
         GradientDrawable trackBg = new GradientDrawable();
         trackBg.setShape(GradientDrawable.RECTANGLE);
@@ -165,8 +167,49 @@ public class AmbientIslandView extends FrameLayout {
     }
 
     /**
-     * Primary entry point called by TransitionOverlayView.
+     * Places the island in the center of the screen during initial boot/login connection.
      */
+    public void setupInitialHeroState() {
+        isHeroCentered = true;
+        post(() -> {
+            int parentHeight = ((View) getParent()).getHeight();
+            if (parentHeight == 0) {
+                parentHeight = getResources().getDisplayMetrics().heightPixels;
+            }
+            float targetCenterY = (parentHeight / 2f) - (dp(IDLE_HEIGHT_DP) / 2f) - dp(6);
+            setTranslationY(targetCenterY);
+            setScaleX(1.15f);
+            setScaleY(1.15f);
+            setLoading(true);
+        });
+    }
+
+    /**
+     * Glides the island from center up to its normal top status-bar position.
+     */
+    public void flyToTop() {
+        if (!isHeroCentered) return;
+        isHeroCentered = false;
+
+        if (flyAnimator != null && flyAnimator.isRunning()) {
+            flyAnimator.cancel();
+        }
+
+        animate().scaleX(1.0f).scaleY(1.0f).setDuration(480).setInterpolator(new DecelerateInterpolator()).start();
+
+        flyAnimator = ObjectAnimator.ofFloat(this, "translationY", getTranslationY(), 0f);
+        flyAnimator.setDuration(520);
+        flyAnimator.setInterpolator(new DecelerateInterpolator(1.8f));
+        flyAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                setTranslationY(0f);
+                stopLoadingAnimationGracefully();
+            }
+        });
+        flyAnimator.start();
+    }
+
     public void setLoading(boolean loading) {
         if (this.isLoading == loading) return;
 
@@ -180,9 +223,12 @@ public class AmbientIslandView extends FrameLayout {
             this.loadStartTime = System.currentTimeMillis();
             startLoadingAnimation();
         } else {
+            if (isHeroCentered) {
+                flyToTop();
+                return;
+            }
             long elapsed = System.currentTimeMillis() - loadStartTime;
             if (elapsed < MIN_DISPLAY_MS) {
-                // Let the animation complete its minimum cycle before gracefully exiting
                 pendingExitRunnable = this::stopLoadingAnimationGracefully;
                 handler.postDelayed(pendingExitRunnable, MIN_DISPLAY_MS - elapsed);
             } else {
@@ -192,10 +238,8 @@ public class AmbientIslandView extends FrameLayout {
     }
 
     private void startLoadingAnimation() {
-        // 1. Morph width from 115dp -> 195dp with spring-like OvershootInterpolator
         animateWidth(dp(ACTIVE_WIDTH_DP), new OvershootInterpolator(1.2f), 320);
 
-        // 2. Crossfade Idle -> Active Content
         idleContainer.animate().alpha(0f).scaleX(0.85f).scaleY(0.85f).setDuration(120).withEndAction(() -> {
             idleContainer.setVisibility(GONE);
             activeContainer.setScaleX(0.85f);
@@ -204,7 +248,6 @@ public class AmbientIslandView extends FrameLayout {
             activeContainer.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start();
         }).start();
 
-        // 3. Staggered 3-Orb Wave Animation
         ObjectAnimator a1 = createOrbPulse(dot1, 0);
         ObjectAnimator a2 = createOrbPulse(dot2, 160);
         ObjectAnimator a3 = createOrbPulse(dot3, 320);
@@ -214,7 +257,6 @@ public class AmbientIslandView extends FrameLayout {
         waveAnimatorSet.playTogether(a1, a2, a3);
         waveAnimatorSet.start();
 
-        // 4. Shimmer Beam Sweep
         if (beamAnimator != null) beamAnimator.cancel();
         beamAnimator = ObjectAnimator.ofFloat(shimmerBeam, "translationX", -dp(45), dp(110));
         beamAnimator.setDuration(900);
@@ -235,14 +277,11 @@ public class AmbientIslandView extends FrameLayout {
     private void stopLoadingAnimationGracefully() {
         this.isLoading = false;
 
-        // 1. Morph width back from 195dp -> 115dp smoothly
         animateWidth(dp(IDLE_WIDTH_DP), new DecelerateInterpolator(1.5f), 280);
 
-        // 2. Crossfade Active -> Idle Content
         activeContainer.animate().alpha(0f).scaleX(0.85f).scaleY(0.85f).setDuration(150).withEndAction(() -> {
             activeContainer.setVisibility(GONE);
 
-            // Clean up animators
             if (waveAnimatorSet != null) {
                 waveAnimatorSet.cancel();
                 waveAnimatorSet = null;

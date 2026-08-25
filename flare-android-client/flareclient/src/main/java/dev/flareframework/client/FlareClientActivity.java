@@ -241,6 +241,7 @@ public class FlareClientActivity extends AppCompatActivity {
 
     // ── Views (Android-only, no mount equivalent needed) ────────────────────────
     private TransitionOverlayView transitionOverlay; // navigation loading animation + error card
+    private AmbientIslandView     ambientIsland;
 
     // ── Phoenix ────────────────────────────────────────────────────────────────
     private PhoenixChannelClient.PhoenixSocket    socket;
@@ -366,8 +367,9 @@ public class FlareClientActivity extends AppCompatActivity {
         transitionOverlay = findViewById(R.id.transition_overlay);
         transitionOverlay.setOnSignOutListener(this::clearStorage);
 
-        // Cosmetic-only ambient island — see island/AmbientIslandView.java.
-        AmbientIslandView ambientIsland = findViewById(R.id.ambient_island);
+        // Cosmetic ambient island
+        ambientIsland = findViewById(R.id.ambient_island);
+        ambientIsland.setupInitialHeroState(); // Start centered during initial connection
         transitionOverlay.setAmbientIsland(ambientIsland);
         transitionOverlay.setOnErrorVisibilityListener(
                 () -> hideScaffold("bottom_bar"),
@@ -989,6 +991,7 @@ public class FlareClientActivity extends AppCompatActivity {
      *                which calls retryConnection() below.
      */
     private void showConnectionLostFallback(String message, Runnable onRetry) {
+        if (ambientIsland != null) ambientIsland.flyToTop();
         JSONObject layoutJson = loadConnectionLostLayoutJson();
         if (layoutJson == null) {
             transitionOverlay.showError(message, onRetry);
@@ -1021,6 +1024,7 @@ public class FlareClientActivity extends AppCompatActivity {
         // hook hides the bottom bar along with it. hide() is a no-op if the
         // overlay isn't currently visible, so this is always safe to call.
         if (mount == contentMount) {
+            if (ambientIsland != null) ambientIsland.flyToTop();
             transitionOverlay.hide();
             transitionOverlay.stopIslandLoading();
         }
@@ -1337,11 +1341,12 @@ public class FlareClientActivity extends AppCompatActivity {
             Div2View div2View = factory.createView(parsed.layout);
             mount.div2View = div2View;
 
-            // Mark that content has successfully loaded at least once. From
-            // here on, connection drops must never trigger the blocking
-            // give-up dialog — see hasEverLoadedContent's declaration.
+            // Mark that content has successfully loaded at least once.
             if (mount == contentMount) {
                 hasEverLoadedContent = true;
+                if (ambientIsland != null) {
+                    ambientIsland.flyToTop(); // Glide smoothly up to top status bar
+                }
             }
 
             // ── Step 4: Show it — into THIS mount's container, not a shared one ──
