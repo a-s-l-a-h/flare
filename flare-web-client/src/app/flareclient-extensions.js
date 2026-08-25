@@ -9,6 +9,7 @@ import { HapticTask } from "../flareclient-extensions-builtin/tasks/haptic/hapti
 import { ShowAlertTask } from "../flareclient-extensions-builtin/tasks/show-alert/show-alert-task.js";
 import { ShowScaffoldTask } from "../flareclient-extensions-builtin/tasks/show-scaffold/show-scaffold-task.js";
 import { HideScaffoldTask } from "../flareclient-extensions-builtin/tasks/hide-scaffold/hide-scaffold-task.js";
+import { RetryConnectionTask } from "../flareclient-extensions-builtin/tasks/retry-connection/retry-connection-task.js";
 
 function registerBuiltInTasks() {
   registerClientTask(OpenBrowserTask);
@@ -17,6 +18,7 @@ function registerBuiltInTasks() {
   registerClientTask(ShowAlertTask);
   registerClientTask(ShowScaffoldTask);
   registerClientTask(HideScaffoldTask);
+  registerClientTask(RetryConnectionTask);
 }
 
 function registerBuiltInPlugins() { /* none yet */ }

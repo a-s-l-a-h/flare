@@ -8,6 +8,8 @@ import {
 } from "@divkitframework/divkit/dist/client";
 import "@divkitframework/divkit/dist/client.css";
 import { AmbientIsland } from "./island/ambient-island.js";
+import connectionLostScreenJson from "./connection-lost-screen.json";
+import screenErrorScreenJson from "./screen-error-screen.json";
 // ── LOCAL ENGINE ADDITIONS ───────────────────────────────────────────────
 // New, self-contained plugin/task/export subsystem — see
 // flare/LOCAL_ENGINE_PROTOCOL.md for the full cross-platform contract.
@@ -75,16 +77,14 @@ const SPINNER_HTML = `
 
 class TransitionOverlay {
   constructor() {
-    this.el         = document.getElementById("flare-transition-overlay");
-    this.lottieEl   = document.getElementById("flare-transition-lottie");
-    this.errorEl    = document.getElementById("flare-transition-error");
-    this.errorMsgEl = document.getElementById("flare-transition-error-msg");
-    this.retryBtn   = document.getElementById("flare-transition-retry");
-    this.resetBtn   = document.getElementById("flare-transition-reset");
+    this.el               = document.getElementById("flare-transition-overlay");
+    this.connectionLostEl = document.getElementById("flare-transition-connection-lost");
+    this.lottieEl         = document.getElementById("flare-transition-lottie");
+    this.errorEl          = document.getElementById("flare-transition-error");
+    this.errorMsgEl       = document.getElementById("flare-transition-error-msg");
+    this.retryBtn         = document.getElementById("flare-transition-retry");
+    this.resetBtn         = document.getElementById("flare-transition-reset");
 
-    // Escape hatch for a bricked session (e.g. stale token/state after an
-    // SDUI update). Always wired once — not tied to any single onRetry call.
-    // Wipes local storage and hard-reloads, guaranteeing a clean login.
     if (this.resetBtn) {
       this.resetBtn.onclick = () => {
         localStorage.removeItem("flare_token");
@@ -95,39 +95,30 @@ class TransitionOverlay {
     }
 
     this.TIMEOUT_MS  = 8000;
-
     this.visible       = false;
     this.showStartMs   = 0;
     this.timeoutHandle = null;
     this.onErrorShown  = null;
     this.onErrorHidden = null;
-
-    // The spinner is a plain CSS-animated element defined in index.html
-    // inside #flare-transition-lottie — no JS-driven animation object needed.
   }
 
-  /**
-   * Registers callbacks fired when the error card appears/disappears —
-   * lets FlareClient hide persistent scaffold regions that are no longer
-   * actually tappable underneath this full-screen overlay, then restore
-   * them once it's gone. Deliberately NOT fired by show() (the ordinary
-   * loading spinner) — only by showError()/_doHide().
-   */
   setOnErrorVisibilityListener(onShown, onHidden) {
     this.onErrorShown = onShown;
     this.onErrorHidden = onHidden;
   }
 
-show(onRetry) {
+  show(onRetry) {
     this.showStartMs = Date.now();
     this.visible = true;
 
     this.errorEl.style.display  = "none";
+    if (this.connectionLostEl && this.connectionLostEl.style.display !== "block") {
+      this.connectionLostEl.style.display = "none";
+    }
     this.lottieEl.style.display = "block";
     this.el.style.display = "flex";
 
-    AmbientIsland.setLoading(true); // 🔥 Trigger Island Animation
-
+    AmbientIsland.setLoading(true);
     this._armTimeout(onRetry);
   }
 
@@ -143,7 +134,15 @@ show(onRetry) {
     this.el.style.display = "flex";
     this.lottieEl.style.display = "none";
 
-    AmbientIsland.setLoading(false); // 🔥 Stop Island on Error
+    AmbientIsland.setLoading(false);
+
+    // If connection lost layout is active, don't flash native error card on top
+    if (this.connectionLostEl && this.connectionLostEl.style.display === "block" && this.connectionLostEl.childElementCount > 0) {
+      this.errorEl.style.display = "none";
+      return;
+    }
+
+    if (this.connectionLostEl) this.connectionLostEl.style.display = "none";
 
     if (this.onErrorShown) this.onErrorShown();
 
@@ -159,15 +158,42 @@ show(onRetry) {
     };
   }
 
+  showConnectionLostFallback() {
+    this._clearTimeout();
+    this.visible = true;
+    this.el.style.display = "flex";
+    this.lottieEl.style.display = "none";
+    this.errorEl.style.display = "none";
+
+    AmbientIsland.setLoading(false);
+    if (this.onErrorShown) this.onErrorShown();
+
+    if (this.connectionLostEl) this.connectionLostEl.style.display = "block";
+  }
+
+  resetFallback() {
+    if (this.connectionLostEl) {
+      this.connectionLostEl.style.display = "none";
+      this.connectionLostEl.innerHTML = "";
+    }
+    if (this.errorEl) this.errorEl.style.display = "none";
+  }
+
+  startIslandLoading() {
+    AmbientIsland.setLoading(true);
+  }
+
+  stopIslandLoading() {
+    AmbientIsland.setLoading(false);
+  }
+
   isVisible() { return this.visible; }
 
-  // Immediate hide, bypassing MIN_SHOW_MS and any pending timeout.
-  // Used by logout/auth-failure, where we must not leave a stale
-  // "Connection lost" popup on screen or let its retry callback fire.
   forceHide() {
     this._clearTimeout();
     this.visible = false;
     AmbientIsland.setLoading(false);
+    this.resetFallback();
     this.el.style.display = "none";
   }
 
@@ -184,8 +210,9 @@ show(onRetry) {
 
   _doHide() {
     this.visible = false;
-    AmbientIsland.setLoading(false); // 🔥 Graceful stop on content load
+    AmbientIsland.setLoading(false);
     if (this.onErrorHidden) this.onErrorHidden();
+    this.resetFallback();
     this.el.style.display = "none";
   }
 }
@@ -206,6 +233,8 @@ export class FlareClient {
     this.scaffoldRegions = config.scaffoldRegions || [];
 
     this.socket = null;
+    this.hasEverLoadedContent = false;
+    this.reconnectFailureStreak = 0;
 
     // "content" is the primary mount that navigateTo() swaps out.
     this.content = this._makeMount(config.rootEl, null);
@@ -322,20 +351,39 @@ export class FlareClient {
     this.socket.connect();
     this.socket.onOpen(() => {
       this.log("✅ WebSocket connected");
+      this.reconnectFailureStreak = 0;
       this._joinPersistentScreens();
-      if (this.transitionOverlay.isVisible() && this._pendingScreenName) {
+
+      if (this.transitionOverlay.isVisible() && this.hasEverLoadedContent) {
+        this.log("Socket reconnected — retrying silently, overlay stays as-is");
+        this._retryCurrentScreen();
+      } else if (this.transitionOverlay.isVisible() && this._pendingScreenName) {
+        // Pre-first-load: Keep the spinner active, no error flash
+        this.transitionOverlay.show(() => this._retryCurrentScreen());
         this._retryCurrentScreen();
       }
     });
+
     this.socket.onClose(() => {
       this.log("❌ WebSocket closed");
-      // We closed this socket ourselves (logout/auth-failure) — don't show
-      // a "Connection lost" error or attempt to retry on a dead socket.
       if (this._intentionalDisconnect) {
         this._intentionalDisconnect = false;
         return;
       }
-      this.transitionOverlay.showError("Connection lost. Reconnecting…", () => this._retryCurrentScreen());
+
+      this.reconnectFailureStreak++;
+
+      // 🔥 FIX: During initial boot/first load, NEVER flash the error screen.
+      // Keep the loading spinner up unless it fails repeatedly (streak >= 3).
+      if (!this.hasEverLoadedContent) {
+        if (this.reconnectFailureStreak >= 3) {
+          this._showConnectionLostFallback("We're having trouble connecting. Please check your network or try again.");
+        }
+        return;
+      }
+
+      // If content has loaded before, show the fallback screen
+      this._showConnectionLostFallback("Connection lost. Reconnecting…");
     });
   }
 
@@ -421,6 +469,7 @@ export class FlareClient {
     // below) until the new screen's init envelope arrives and
     // _handleInit() swaps it in instantly. Zero artificial delay.
 
+    this.transitionOverlay.resetFallback();
     this.transitionOverlay.show(() => this._retryCurrentScreen());
 
     this._joinChannel(this.content, screenName, params, () => {
@@ -506,10 +555,8 @@ export class FlareClient {
                      resp.reason === "invalid_token")) {
           this._handleAuthFailure();
         } else if (mount === this.content) {
-          // Fix: Hide the global blocking overlay and show the error INLINE in the content div.
-          // This allows the user to click other tabs on the bottom bar to escape!
           this.transitionOverlay.hide();
-          this._showError(mount, "Something went wrong loading this screen. Please try another tab or check back later.");
+          this._showScreenErrorFallback(mount, "Something went wrong loading this screen. Please try another tab or check back later.");
         } else {
           console.error(`[Flare] Persistent region failed to join: ${screenName}`);
           this._hideBrokenRegion(mount);
@@ -518,9 +565,8 @@ export class FlareClient {
       .receive("timeout", () => {
         console.error(`⏱ Timeout joining flare:${screenName}`);
         if (mount === this.content) {
-          // Handle timeouts exactly the same as errors (isolated to the screen)
           this.transitionOverlay.hide();
-          this._showError(mount, "Screen load timed out. Please try another tab or check back later.");
+          this._showScreenErrorFallback(mount, "Screen load timed out. Please try another tab or check back later.");
         } else {
           this._hideBrokenRegion(mount);
         }
@@ -610,6 +656,8 @@ export class FlareClient {
       const divkitRoot = newWrapper.firstElementChild;
       if (divkitRoot) { divkitRoot.style.width = "100%"; divkitRoot.style.height = "100%"; }
 
+      this.hasEverLoadedContent = true;
+      this.reconnectFailureStreak = 0;
       oldChildren.forEach(child => child.remove());
       this.transitionOverlay.hide();
     } else {
@@ -1084,6 +1132,70 @@ export class FlareClient {
     FlareExportedVariables.set(name, value);
   }
 }
+
+  // ---------------------------------------------------------------------------
+  // Fallback screens (Connection Lost on Overlay, Screen Error on Mount)
+  // ---------------------------------------------------------------------------
+
+  _renderFallback(targetEl, json, variableName, message) {
+    this._setVariable(variableName, "string", message);
+    targetEl.innerHTML = "";
+    render({
+      id: `flare-${variableName}`,
+      target: targetEl,
+      json: json,
+      globalVariablesController: this.globalController,
+      customComponents: getCustomComponentsMap(),
+      onCustomAction: (action) => {
+        const url = action.url || "";
+        if (url.startsWith("flare://clienttask")) {
+          const params = this._parseFlareActionUrl(url);
+          dispatchClientTask(params.task, params);
+        }
+      }
+    });
+    const root = targetEl.firstElementChild;
+    if (root) { root.style.width = "100%"; root.style.height = "100%"; }
+  }
+
+  _showConnectionLostFallback(message) {
+    try {
+      if (!this.transitionOverlay.connectionLostEl) throw new Error("no #flare-transition-connection-lost element");
+      this._renderFallback(this.transitionOverlay.connectionLostEl, connectionLostScreenJson, "local_connection_lost_message", message);
+      this.transitionOverlay.showConnectionLostFallback();
+    } catch (e) {
+      console.error("[Flare] Failed to render connection-lost screen — falling back to native error card", e);
+      this.transitionOverlay.showError(message, () => this._retryCurrentScreen());
+    }
+  }
+
+  _showScreenErrorFallback(mount, message) {
+    try {
+      this._renderFallback(mount.el, screenErrorScreenJson, "local_screen_error_message", message);
+    } catch (e) {
+      console.error("[Flare] Failed to render screen-error screen — falling back to plain text", e);
+      this._showError(mount, message);
+    }
+  }
+
+  /**
+   * Entry point for the built-in "retry_connection" client task.
+   */
+  retryConnection() {
+    if (this.socket && !this.socket.isConnected()) {
+      this.socket.connect();
+    }
+
+    if (this.transitionOverlay.isVisible()) {
+      // Full screen connection lost: keep overlay active
+      this.transitionOverlay.show(() => this._retryCurrentScreen());
+    } else {
+      // Single content area screen error: animate ONLY Island so bottom bar stays clickable
+      this.transitionOverlay.startIslandLoading();
+    }
+
+    this._retryCurrentScreen();
+  }
 
   // ---------------------------------------------------------------------------
   // Private helpers

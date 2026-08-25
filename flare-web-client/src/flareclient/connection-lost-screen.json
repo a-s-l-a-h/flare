@@ -1,0 +1,82 @@
+{
+  "card": {
+    "log_id": "flare_connection_lost_screen",
+    "states": [
+      {
+        "state_id": 0,
+        "div": {
+          "type": "container",
+          "orientation": "vertical",
+          "width": { "type": "match_parent" },
+          "height": { "type": "match_parent" },
+          "background": [{ "type": "solid", "color": "@{local_dark_mode ? '#0D0D12' : '#FFFFFF'}" }],
+          "content_alignment_vertical": "center",
+          "content_alignment_horizontal": "center",
+          "paddings": { "left": 28, "right": 28, "top": 24, "bottom": 24 },
+          "items": [
+            {
+              "type": "container",
+              "width": { "type": "fixed", "value": 96 },
+              "height": { "type": "fixed", "value": 96 },
+              "background": [{ "type": "solid", "color": "@{local_dark_mode ? '#1C1C26' : '#F0F4FA'}" }],
+              "border": { "corner_radius": 48 },
+              "content_alignment_horizontal": "center",
+              "content_alignment_vertical": "center",
+              "margins": { "bottom": 24 },
+              "items": [
+                { "type": "text", "text": "📡", "font_size": 40, "text_alignment_horizontal": "center" }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "No internet connection",
+              "font_size": 20,
+              "font_weight": "bold",
+              "text_color": "@{local_dark_mode ? '#F0F0F5' : '#181818'}",
+              "text_alignment_horizontal": "center",
+              "margins": { "bottom": 8 }
+            },
+            {
+              "type": "text",
+              "text": "@{local_connection_lost_message}",
+              "font_size": 14,
+              "line_height": 20,
+              "text_color": "@{local_dark_mode ? '#9090A8' : '#666666'}",
+              "text_alignment_horizontal": "center",
+              "margins": { "bottom": 28, "left": 12, "right": 12 }
+            },
+            {
+              "type": "text",
+              "text": "Retry",
+              "font_size": 15,
+              "font_weight": "bold",
+              "text_alignment_horizontal": "center",
+              "text_color": "@{local_dark_mode ? '#7CB4F5' : '#0A66C2'}",
+              "background": [{ "type": "solid", "color": "@{local_dark_mode ? '#0D0D12' : '#FFFFFF'}" }],
+              "border": {
+                "corner_radius": 24,
+                "stroke": { "color": "@{local_dark_mode ? '#7CB4F5' : '#0A66C2'}", "width": 1.5 }
+              },
+              "paddings": { "top": 10, "bottom": 10, "left": 36, "right": 36 },
+              "width": { "type": "wrap_content" },
+              "margins": { "bottom": 16 },
+              "action": { "log_id": "btn_connection_lost_retry", "url": "flare://clienttask?task=retry_connection" }
+            },
+            {
+              "type": "text",
+              "text": "Sign out",
+              "font_size": 13,
+              "font_weight": "medium",
+              "text_alignment_horizontal": "center",
+              "text_color": "@{local_dark_mode ? '#707080' : '#8C8C8C'}",
+              "paddings": { "top": 8, "bottom": 8, "left": 20, "right": 20 },
+              "width": { "type": "wrap_content" },
+              "action": { "log_id": "btn_connection_lost_signout", "url": "flare://clienttask?task=force_logout" }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "templates": {}
+}
