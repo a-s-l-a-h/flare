@@ -9,6 +9,7 @@ import dev.flareframework.extensions.builtin.tasks.haptic.HapticTask;
 import dev.flareframework.extensions.builtin.tasks.show_alert.ShowAlertTask;
 import dev.flareframework.extensions.builtin.tasks.show_scaffold.ShowScaffoldTask;
 import dev.flareframework.extensions.builtin.tasks.hide_scaffold.HideScaffoldTask;
+import dev.flareframework.extensions.builtin.tasks.retry_connection.RetryConnectionTask;
 
 // Builtin native panes
 import dev.flareframework.extensions.builtin.panes.placeholder_pane.PlaceholderPaneProvider;
@@ -53,6 +54,7 @@ public final class FlareExtensions {
         new ShowAlertTask().register();
         new ShowScaffoldTask().register();
         new HideScaffoldTask().register();
+        new RetryConnectionTask().register();
     }
 
         private static void registerBuiltInPlugins() { /* none yet */ }

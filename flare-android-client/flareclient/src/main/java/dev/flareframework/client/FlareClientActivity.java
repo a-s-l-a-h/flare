@@ -144,8 +144,14 @@ public class FlareClientActivity extends AppCompatActivity {
     private static final int MAX_CONTENT_JOIN_FAILURES  = 2;
     private int reconnectFailureStreak   = 0;
     private int contentJoinFailureStreak = 0;
-    // Add this near your other variables (like wsUrl, socket, etc.)
-    private AlertDialog giveUpDialog = null;
+
+    // Cached parsed JSON for the two local fallback screens. null means the
+    // asset couldn't be loaded — the corresponding show...Fallback() method
+    // falls back to the existing native UI automatically in that case.
+    private JSONObject cachedConnectionLostLayoutJson = null;
+    private boolean connectionLostLayoutLoadAttempted = false;
+    private JSONObject cachedScreenErrorLayoutJson = null;
+    private boolean screenErrorLayoutLoadAttempted = false;
 
     // ── Views ──────────────────────────────────────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════
@@ -720,26 +726,19 @@ public class FlareClientActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 joinPersistentScreens();
 
-                // FIX: If the popup is showing and the background connection succeeds,
-                // kill the popup, show the loading spinner, and let the page load!
-                if (giveUpDialog != null && giveUpDialog.isShowing()) {
-                    Log.d(TAG, "Socket reconnected! Auto-dismissing give-up dialog.");
-                    giveUpDialog.dismiss();
-                    giveUpDialog = null;
-                    transitionOverlay.show(this::retryCurrentScreen, null);
+                if (transitionOverlay.isVisible() && hasEverLoadedContent) {
+                    // Don't switch to the transparent spinner here — that
+                    // would flash the stale screen behind the fallback for
+                    // a moment. Just re-attempt the join.
+                    Log.d(TAG, "Socket reconnected — retrying silently, overlay stays as-is");
                     retryCurrentScreen();
-                }
-                // FIX: If the overlay is stuck showing an error card, force it back to the
-                // loading spinner so the user knows it's actively reconnecting!
-                else if (transitionOverlay.isVisible()) {
-                    Log.d(TAG, "Socket reconnected while overlay showing — switching to spinner");
-
-                    // Hide the error card and show the spinner again
+                } else if (transitionOverlay.isVisible()) {
+                    // Pre-first-load: nothing stale to reveal — spinner is fine.
+                    Log.d(TAG, "Socket reconnected while overlay showing (pre-first-load) — spinner");
                     transitionOverlay.show(
                             this::retryCurrentScreen,
-                            hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
+                            () -> { /* suppressed pre-first-load */ }
                     );
-
                     retryCurrentScreen();
                 }
             });
@@ -852,15 +851,13 @@ public class FlareClientActivity extends AppCompatActivity {
         // no artificial delay, no slide. See Step 4 in handleInit().
 
         // ── Show transition overlay ─────────────────────────────────────────
-        //  before the first ever successful load, suppress the overlay's
-        // own auto-timeout error card — showGiveUpDialog() (via
-        // handleConnectionFailure/handleJoinFailure) owns escalation for
-        // that phase, so we don't want a transient "Connection problem" card
-        // flashing on screen in between the spinner and the blocking dialog.
-        runOnUiThread(() -> transitionOverlay.show(
-                this::retryCurrentScreen,
-                hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
-        ));
+        runOnUiThread(() -> {
+            transitionOverlay.resetFallback();
+            transitionOverlay.show(
+                    this::retryCurrentScreen,
+                    hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
+            );
+        });
 
         // ── Update back stack (content-only, same as before) ───────────────────
         // BUGFIX: push the params the OLD screen was joined with, not just its
@@ -893,11 +890,13 @@ public class FlareClientActivity extends AppCompatActivity {
 
         // Old screen intentionally left visible — see navigateTo() comment.
 
-        // Same suppression as navigateTo() — see comment there.
-        runOnUiThread(() -> transitionOverlay.show(
-                this::retryCurrentScreen,
-                hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
-        ));
+        runOnUiThread(() -> {
+            transitionOverlay.resetFallback();
+            transitionOverlay.show(
+                    this::retryCurrentScreen,
+                    hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
+            );
+        });
 
         currentContentScreen = screenName;
         currentContentParams = params;
@@ -960,8 +959,7 @@ public class FlareClientActivity extends AppCompatActivity {
             // else: do nothing — keep the spinner up, let it keep retrying quietly.
         } else {
             // Screen has loaded before — this is just background flakiness.
-            // The lightweight, self-dismissing inline overlay is correct here.
-            transitionOverlay.showError(message, this::retryCurrentScreen);
+            showConnectionLostFallback(message, this::retryCurrentScreen);
         }
     }
 
@@ -974,44 +972,133 @@ public class FlareClientActivity extends AppCompatActivity {
      * Gives the user an explicit, impossible-to-miss way out.
      */
     private void showGiveUpDialog(String message) {
-        transitionOverlay.hide();
+        // transitionOverlay already fully blocks touches and already hides
+        // the bottom bar via setOnErrorVisibilityListener() (wired in
+        // onCreate()) — same "fully blocking, modal" guarantee as before.
+        showConnectionLostFallback(message, this::retryCurrentScreen);
+    }
 
-        // 1. FIX MULTIPLE POPUPS: If the dialog is already showing, ignore new requests
-        if (giveUpDialog != null && giveUpDialog.isShowing()) {
+    /**
+     * Renders assets/connection_lost_screen.json into the transition
+     * overlay (top layer). Falls back to the overlay's native error card
+     * if the asset is missing or fails to render.
+     *
+     * @param onRetry only used by the native-error fallback path — the
+     *                fallback screen's own Retry button fires
+     *                flare://clienttask?task=retry_connection instead,
+     *                which calls retryConnection() below.
+     */
+    private void showConnectionLostFallback(String message, Runnable onRetry) {
+        JSONObject layoutJson = loadConnectionLostLayoutJson();
+        if (layoutJson == null) {
+            transitionOverlay.showError(message, onRetry);
             return;
         }
+        try {
+            globalVarsController.putOrUpdate(new Variable.StringVariable("local_connection_lost_message", message));
+            FlareDivViewFactory factory = new FlareDivViewFactory(div2Context, globalVarsController);
+            Div2View view = factory.createView(layoutJson);
+            transitionOverlay.showConnectionLostFallback(view);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to render connection_lost_screen — falling back to native error card", e);
+            transitionOverlay.showError(message, onRetry);
+        }
+    }
 
-        // This is a fully blocking, modal failure state — hide persistent
-        // scaffold regions too. (transitionOverlay.hide() just above already
-        // restored them if it was showing its own error card — this
-        // re-hides for the dialog, which is even more severe.)
-        hideScaffold("bottom_bar");
+    /**
+     * Renders assets/screen_error_screen.json directly into ONE screen's
+     * own content mount (bottom layer) — used when a single screen fails
+     * to join or render after the app has already loaded successfully at
+     * least once. Other regions (bottom bar, other mounts) stay usable.
+     * Falls back to a plain "tap to retry" TextView if the asset can't be
+     * loaded or fails to render.
+     */
+    private void showScreenErrorFallback(Mount mount, String message, Runnable onRetry) {
+        // CRITICAL: the transition overlay's own internal 8s timeout (armed by
+        // show()) is still ticking in the background at this point — if we
+        // don't hide it here, it fires on its own later and throws up the
+        // native error card on top of this fallback, and its onErrorShown
+        // hook hides the bottom bar along with it. hide() is a no-op if the
+        // overlay isn't currently visible, so this is always safe to call.
+        if (mount == contentMount) {
+            transitionOverlay.hide();
+            transitionOverlay.stopIslandLoading();
+        }
 
-        giveUpDialog = new AlertDialog.Builder(this)
-                .setTitle("Something went wrong")
-                .setMessage(message)
-                .setCancelable(false)
-                .setPositiveButton("Retry", (dialog, which) -> {
-                    // Clear the reference since it's being dismissed
-                    giveUpDialog = null;
+        JSONObject layoutJson = loadScreenErrorLayoutJson();
+        if (layoutJson == null) {
+            showContentInlineErrorFallback(mount, message, onRetry);
+            return;
+        }
+        try {
+            globalVarsController.putOrUpdate(new Variable.StringVariable("local_screen_error_message", message));
+            FlareDivViewFactory factory = new FlareDivViewFactory(div2Context, globalVarsController);
+            Div2View view = factory.createView(layoutJson);
 
-                    reconnectFailureStreak = 0;
-                    contentJoinFailureStreak = 0;
+            mount.container.removeAllViews();
+            mount.container.addView(view, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            mount.div2View = view;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to render screen_error_screen — falling back to plain text", e);
+            showContentInlineErrorFallback(mount, message, onRetry);
+        }
+    }
 
-                    // 2. FIX LOTTIE ANIMATION: Show the transition overlay again while retrying
-                    transitionOverlay.show(
-                            this::retryCurrentScreen,
-                            hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
-                    );
+    private JSONObject loadConnectionLostLayoutJson() {
+        if (cachedConnectionLostLayoutJson != null || connectionLostLayoutLoadAttempted) return cachedConnectionLostLayoutJson;
+        connectionLostLayoutLoadAttempted = true;
+        try (java.io.InputStream is = getAssets().open("connection_lost_screen.json")) {
+            byte[] buffer = new byte[is.available()];
+            //noinspection ResultOfMethodCallIgnored
+            is.read(buffer);
+            cachedConnectionLostLayoutJson = new JSONObject(new String(buffer, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to load assets/connection_lost_screen.json — using native error UI instead", e);
+            cachedConnectionLostLayoutJson = null;
+        }
+        return cachedConnectionLostLayoutJson;
+    }
 
-                    if (socket != null && !socket.isConnected()) socket.connect();
-                    retryCurrentScreen();
-                })
-                .setNegativeButton("Sign Out", (dialog, which) -> {
-                    giveUpDialog = null;
-                    clearStorage();
-                })
-                .show();
+    private JSONObject loadScreenErrorLayoutJson() {
+        if (cachedScreenErrorLayoutJson != null || screenErrorLayoutLoadAttempted) return cachedScreenErrorLayoutJson;
+        screenErrorLayoutLoadAttempted = true;
+        try (java.io.InputStream is = getAssets().open("screen_error_screen.json")) {
+            byte[] buffer = new byte[is.available()];
+            //noinspection ResultOfMethodCallIgnored
+            is.read(buffer);
+            cachedScreenErrorLayoutJson = new JSONObject(new String(buffer, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to load assets/screen_error_screen.json — using native error UI instead", e);
+            cachedScreenErrorLayoutJson = null;
+        }
+        return cachedScreenErrorLayoutJson;
+    }
+
+    /**
+     * Entry point for the built-in "retry_connection" client task. Never
+     * touches the overlay's visual state — see onOpen() above. Just
+     * reconnects if needed and re-attempts the join.
+     */
+    public void retryConnection() {
+        reconnectFailureStreak = 0;
+        contentJoinFailureStreak = 0;
+        if (socket != null && !socket.isConnected()) socket.connect();
+
+        if (transitionOverlay.isVisible()) {
+            // Case 1: Total connection lost (top layer).
+            // Keep full-screen overlay active while retrying.
+            transitionOverlay.show(
+                    this::retryCurrentScreen,
+                    hasEverLoadedContent ? null : () -> { /* suppressed pre-first-load */ }
+            );
+        } else {
+            // Case 2: Single screen error (content area only).
+            // Animate ONLY the Ambient Island so the bottom bar remains 100% clickable!
+            transitionOverlay.startIslandLoading();
+        }
+
+        retryCurrentScreen();
     }
 
     /**
@@ -1020,9 +1107,10 @@ public class FlareClientActivity extends AppCompatActivity {
      * does NOT consume touches on other regions, so bottom bar / drawer taps
      * still work and the user can navigate away from the broken screen.
      */
-    private void showContentInlineError(String message, Runnable onRetry) {
+    /** Last-resort fallback if screen_error_screen.json is missing/broken. */
+    private void showContentInlineErrorFallback(Mount mount, String message, Runnable onRetry) {
         transitionOverlay.hide();
-        contentMount.container.removeAllViews();
+        mount.container.removeAllViews();
 
         TextView tv = new TextView(this);
         tv.setText(message + "\n\n(Tap to retry)");
@@ -1031,7 +1119,7 @@ public class FlareClientActivity extends AppCompatActivity {
         tv.setTextColor(0xFFE74C3C);
         tv.setOnClickListener(v -> { if (onRetry != null) onRetry.run(); });
 
-        contentMount.container.addView(tv, new FrameLayout.LayoutParams(
+        mount.container.addView(tv, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
@@ -1102,9 +1190,10 @@ public class FlareClientActivity extends AppCompatActivity {
                 }
                 // else: do nothing — keep the spinner up.
             } else {
-                // Screen loaded before — inline, dismissible error is correct.
-                runOnUiThread(() -> showContentInlineError(
-                        "Could not load screen: " + screenName, this::retryCurrentScreen));
+                // Screen loaded before — isolate the failure to THIS screen's
+                // own mount (bottom bar/other regions stay usable).
+                runOnUiThread(() -> showScreenErrorFallback(
+                        mount, "Could not load screen: " + screenName, this::retryCurrentScreen));
             }
         } else {
             // Isolate the failure to this one region instead of leaving it in
@@ -1235,8 +1324,8 @@ public class FlareClientActivity extends AppCompatActivity {
             // ── Step 3: Render layout ─────────────────────────────────────────
             if (parsed.layout == null) {
                 if (mount == contentMount) {
-                    transitionOverlay.showError(
-                            "Server sent empty layout for screen: " + currentContentScreen,
+                    showScreenErrorFallback(
+                            mount, "Server sent empty layout for screen: " + currentContentScreen,
                             this::retryCurrentScreen
                     );
                 }
@@ -1271,13 +1360,6 @@ public class FlareClientActivity extends AppCompatActivity {
                 transitionOverlay.hide();
             }
 
-            // SAFETY CATCH: The page has successfully rendered.
-            // If the popup is still stuck on the screen somehow, destroy it instantly!
-            if (giveUpDialog != null && giveUpDialog.isShowing()) {
-                giveUpDialog.dismiss();
-                giveUpDialog = null;
-            }
-
             // ── Step 5: Execute bootstrap commands from init envelope ─────────
             // The server puts store_token here on first connect (new guest).
             FlareServerDirectiveHandler.execute(
@@ -1294,8 +1376,9 @@ public class FlareClientActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e(TAG, "handleInit error for mount=" + mount.region, e);
             if (mount == contentMount) {
-                transitionOverlay.showError(
-                        "Error rendering screen: " + e.getMessage(),
+                transitionOverlay.hide();
+                showScreenErrorFallback(
+                        mount, "Error rendering screen: " + e.getMessage(),
                         this::retryCurrentScreen
                 );
             }

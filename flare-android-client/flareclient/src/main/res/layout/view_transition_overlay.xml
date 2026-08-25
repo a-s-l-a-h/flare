@@ -76,4 +76,13 @@
 
     </LinearLayout>
 
+    <!-- Local "connection lost" screen (assets/connection_lost_screen.json).
+         Only ever holds THIS screen — the single-screen error case renders
+         straight into its own content mount instead, never here. -->
+    <FrameLayout
+        android:id="@+id/connection_lost_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
 </FrameLayout>

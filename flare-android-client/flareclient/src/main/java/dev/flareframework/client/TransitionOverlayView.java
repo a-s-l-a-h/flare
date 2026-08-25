@@ -7,6 +7,7 @@ import android.util.Log;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.widget.FrameLayout;
@@ -34,6 +35,10 @@ public class TransitionOverlayView extends FrameLayout {
     private static final long TIMEOUT_MS = 8_000L;
 
     private final ProgressBar progressBar;
+    // Holds the locally-rendered "connection lost" screen (see
+    // showConnectionLostFallback()). Only one of spinner / errorCard /
+    // this is ever visible at once.
+    private final FrameLayout connectionLostContainer;
     // Optional — wired once from FlareClientActivity via setAmbientIsland().
     // Purely cosmetic; if never set, everything behaves exactly as before.
     private AmbientIslandView ambientIsland;
@@ -71,8 +76,9 @@ public class TransitionOverlayView extends FrameLayout {
     public TransitionOverlayView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         LayoutInflater.from(context).inflate(R.layout.view_transition_overlay, this, true);
-        progressBar   = findViewById(R.id.progress_transition);
-        errorCard     = findViewById(R.id.card_error);
+        progressBar             = findViewById(R.id.progress_transition);
+        connectionLostContainer = findViewById(R.id.connection_lost_container);
+        errorCard                = findViewById(R.id.card_error);
         tvErrorMessage = findViewById(R.id.tv_transition_error);
         btnRetry      = findViewById(R.id.btn_retry);
         btnSignOut    = findViewById(R.id.btn_sign_out);
@@ -119,6 +125,11 @@ public class TransitionOverlayView extends FrameLayout {
         visible = true;
 
         errorCard.setVisibility(View.GONE);
+        // Do NOT hide connectionLostContainer if it is currently visible
+        // (preserves the error screen while the retry is in progress)
+        if (connectionLostContainer.getVisibility() != View.VISIBLE) {
+            connectionLostContainer.setVisibility(View.GONE);
+        }
         progressBar.setVisibility(View.VISIBLE);
 
         // Instant show — no fade, no artificial delay.
@@ -167,10 +178,19 @@ public class TransitionOverlayView extends FrameLayout {
         if (onErrorShown != null) onErrorShown.run();
 
         progressBar.setVisibility(View.GONE);
+        if (ambientIsland != null) ambientIsland.setLoading(false);
+
+        // If the custom "connection lost" screen is already active, keep it
+        // and DO NOT flash the native errorCard popup on top of it.
+        if (connectionLostContainer.getVisibility() == View.VISIBLE && connectionLostContainer.getChildCount() > 0) {
+            errorCard.setVisibility(View.GONE);
+            return;
+        }
+
+        connectionLostContainer.setVisibility(View.GONE);
 
         tvErrorMessage.setText(message);
         errorCard.setVisibility(View.VISIBLE);
-        if (ambientIsland != null) ambientIsland.setLoading(false);
 
         if (onRetryAction != null) {
             btnRetry.setVisibility(View.VISIBLE);
@@ -188,14 +208,47 @@ public class TransitionOverlayView extends FrameLayout {
             btnRetry.setVisibility(View.GONE);
         }
 
-        //btnDismiss.setOnClickListener(v -> doHide());
-
         Log.d(TAG, "showError: " + message);
+    }
+
+    /**
+     * Renders the local "connection lost" screen in place of the plain
+     * native error card. Retry/Sign-out are wired inside the layout
+     * itself (flare://clienttask), so no onRetry callback is needed here.
+     */
+    public void showConnectionLostFallback(View fallbackView) {
+        cancelTimeout();
+        visible = true;
+        setVisibility(View.VISIBLE);
+
+        if (onErrorShown != null) onErrorShown.run();
+
+        progressBar.setVisibility(View.GONE);
+        errorCard.setVisibility(View.GONE);
+
+        connectionLostContainer.removeAllViews();
+        connectionLostContainer.addView(fallbackView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        connectionLostContainer.setVisibility(View.VISIBLE);
+
+        if (ambientIsland != null) ambientIsland.setLoading(false);
+    }
+    
+    /**
+     * Clears any active fallback error screen.
+     * Called during fresh screen navigations (navigateTo / navigateBack).
+     */
+    public void resetFallback() {
+        connectionLostContainer.setVisibility(View.GONE);
+        connectionLostContainer.removeAllViews();
+        errorCard.setVisibility(View.GONE);
     }
 
     public boolean isVisible() {
         return visible;
     }
+
+    
     /**
      * Registers the callback fired when the user taps "Sign Out" on the
      * error card. Call once from FlareClientActivity.onCreate().
@@ -206,6 +259,20 @@ public class TransitionOverlayView extends FrameLayout {
     /** Wires the top ambient island so show()/hide()/showError() can toggle it. Optional. */
     public void setAmbientIsland(AmbientIslandView island) {
         this.ambientIsland = island;
+    }
+    /**
+     * Starts the Ambient Island loading animation directly without
+     * making the full-screen overlay block touches (keeps the bottom bar clickable).
+     */
+    public void startIslandLoading() {
+        if (ambientIsland != null) ambientIsland.setLoading(true);
+    }
+
+    /**
+     * Stops the Ambient Island loading animation gracefully.
+     */
+    public void stopIslandLoading() {
+        if (ambientIsland != null) ambientIsland.setLoading(false);
     }
 
     /**
@@ -225,6 +292,9 @@ public class TransitionOverlayView extends FrameLayout {
         if (ambientIsland != null) ambientIsland.setLoading(false);
 
         if (onErrorHidden != null) onErrorHidden.run();
+
+        connectionLostContainer.setVisibility(View.GONE);
+        connectionLostContainer.removeAllViews();
 
         // Instant hide — no fade, no artificial delay.
         setVisibility(View.GONE);
