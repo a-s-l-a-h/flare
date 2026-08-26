@@ -355,13 +355,23 @@ public class FlareClientActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_flare_client);
 
-        // 2. Automatically push SDUI content down by the status bar height (no JSON top padding needed!)
+        // 2. Automatically handle OS Status Bar (top) & Navigation Bar (bottom) insets
         FrameLayout flContent = findViewById(R.id.fl_content);
+        FrameLayout flBottomBar = findViewById(R.id.fl_bottom_bar);
+
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(flContent, (v, insets) -> {
             androidx.core.graphics.Insets statusBar = insets.getInsets(
                     androidx.core.view.WindowInsetsCompat.Type.statusBars()
             );
             v.setPadding(0, statusBar.top, 0, 0);
+            return insets;
+        });
+
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(flBottomBar, (v, insets) -> {
+            androidx.core.graphics.Insets navBar = insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.navigationBars()
+            );
+            v.setPadding(0, 0, 0, navBar.bottom);
             return insets;
         });
 
