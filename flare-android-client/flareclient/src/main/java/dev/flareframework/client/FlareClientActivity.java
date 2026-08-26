@@ -1393,17 +1393,6 @@ public class FlareClientActivity extends AppCompatActivity {
             Div2View div2View = factory.createView(parsed.layout);
             mount.div2View = div2View;
 
-            // Content successfully loaded: clear resume state and glide island up
-            if (mount == contentMount) {
-                hasEverLoadedContent = true;
-                isResumingFromBackground = false;
-                reconnectFailureStreak = 0;
-                contentJoinFailureStreak = 0;
-                if (ambientIsland != null) {
-                    ambientIsland.flyToTop();
-                }
-            }
-
             // ── Step 4: Instant zero-lag view swap ──
             int oldViewsCount = mount.container.getChildCount();
             mount.container.addView(div2View, new FrameLayout.LayoutParams(
@@ -1413,7 +1402,20 @@ public class FlareClientActivity extends AppCompatActivity {
             for (int i = 0; i < oldViewsCount; i++) {
                 mount.container.removeViewAt(0);
             }
+
             if (mount == contentMount) {
+                hasEverLoadedContent = true;
+                isResumingFromBackground = false;
+                reconnectFailureStreak = 0;
+                contentJoinFailureStreak = 0;
+
+                // Animate island up only when the DivKit view is drawn
+                div2View.post(() -> {
+                    if (ambientIsland != null) {
+                        ambientIsland.flyToTop();
+                    }
+                });
+
                 transitionOverlay.resetFallback();
                 transitionOverlay.hide();
             }

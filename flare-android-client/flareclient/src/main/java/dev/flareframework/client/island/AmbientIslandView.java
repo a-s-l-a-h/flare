@@ -223,8 +223,8 @@ public class AmbientIslandView extends FrameLayout {
             this.loadStartTime = System.currentTimeMillis();
             startLoadingAnimation();
         } else {
+            // Keep centered until explicitly triggered by the initial screen render
             if (isHeroCentered) {
-                flyToTop();
                 return;
             }
             long elapsed = System.currentTimeMillis() - loadStartTime;
