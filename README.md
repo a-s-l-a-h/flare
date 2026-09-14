@@ -13,6 +13,9 @@ how to build a new project on top of it.
 > It demonstrates the SDUI architecture and core ideas. APIs will change. Use it to understand the pattern, run the demo, and build on these concepts.
 
 ---
+Early flare ios client development attempt : https://github.com/a-s-l-a-h/flare-ios-client
+
+---
 
 ## Table of Contents
 
